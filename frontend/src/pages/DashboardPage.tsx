@@ -128,25 +128,25 @@ export default function DashboardPage() {
 
       {/* KPI Row 1 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard title="Véhicules actifs" value={stats?.active ?? '—'}
+        <KpiCard href="/fleet" title="Véhicules actifs" value={stats?.active ?? '—'}
           subtitle={`${stats?.total ?? '—'} au total`} icon="🚗" color="blue" />
-        <KpiCard title="Kilomètres parcourus" value={`${fmt(telem?.totalKm)} km`}
+        <KpiCard href="/map" title="Kilomètres parcourus" value={`${fmt(telem?.totalKm)} km`}
           subtitle={`${fmt(telem?.tripCount)} trajets`} icon="📍" color="green" />
-        <KpiCard title="Consommation carburant" value={`${fmt(telem?.totalFuelL)} L`}
+        <KpiCard href="/fuel" title="Consommation carburant" value={`${fmt(telem?.totalFuelL)} L`}
           subtitle={`${fmt(fuel?.totalCostEur)} €`} icon="⛽" color="amber" />
-        <KpiCard title="Alertes fraude ouvertes" value={fuel?.openFraudAlerts ?? '—'}
+        <KpiCard href="/alerts" title="Alertes fraude ouvertes" value={fuel?.openFraudAlerts ?? '—'}
           icon="⚠️" color={(fuel?.openFraudAlerts ?? 0) > 0 ? 'red' : 'green'} />
       </div>
 
       {/* KPI Row 2 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard title="CO₂ émis" value={`${fmt(telem?.totalCo2Kg)} kg`}
+        <KpiCard href="/map" title="CO₂ émis" value={`${fmt(telem?.totalCo2Kg)} kg`}
           icon="🌿" color="purple" />
-        <KpiCard title="Score conduite moyen" value={`${fmt(telem?.avgDrivingScore, 1)} / 100`}
+        <KpiCard href="/map" title="Score conduite moyen" value={`${fmt(telem?.avgDrivingScore, 1)} / 100`}
           icon="⭐" color="blue" />
-        <KpiCard title="Coût carburant" value={`${fmt(fuel?.totalCostEur)} €`}
+        <KpiCard href="/fuel" title="Coût carburant" value={`${fmt(fuel?.totalCostEur)} €`}
           subtitle={`Prix moy. ${fmt(fuel?.avgPriceEur, 3)} €/L`} icon="💶" color="amber" />
-        <KpiCard title="Transactions carburant" value={fuel?.transactionCount ?? '—'}
+        <KpiCard href="/fuel" title="Transactions carburant" value={fuel?.transactionCount ?? '—'}
           icon="🧾" color="green" />
       </div>
 
