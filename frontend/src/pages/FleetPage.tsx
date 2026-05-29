@@ -3,18 +3,22 @@ import { useQuery } from '@tanstack/react-query';
 import { fleetApi } from '../services/api';
 import { Vehicle, Driver } from '../types';
 
-const statusLabel: Record<string, string> = { active: 'Actif', inactive: 'Inactif', archived: 'Archivé' };
-const fuelLabel: Record<string, string> = { diesel: 'Diesel', essence: 'Essence', electric: 'Électrique', hybrid: 'Hybride' };
+const statusLabel: Record<string, string> = { active: 'Actif', inactive: 'Inactif', archived: 'Archive' };
+const fuelLabel: Record<string, string> = { diesel: 'Diesel', essence: 'Essence', electric: 'Electrique', hybrid: 'Hybride' };
 
 export default function FleetPage() {
   const [tab, setTab] = useState<'vehicles'|'drivers'>('vehicles');
   const [search, setSearch] = useState('');
 
-  const { data: vehicles = [], isLoading: loadingV }, isError: errV = useQuery<Vehicle[]>({
-    queryKey: ['vehicles'], queryFn: fleetApi.vehicles, retry: false
+  const { data: vehicles = [], isLoading: loadingV, isError: errV } = useQuery<Vehicle[]>({
+    queryKey: ['vehicles'],
+    queryFn: fleetApi.vehicles,
+    retry: false,
   });
-    const { data: drivers = [], isLoading: loadingD, isError: errD } = useQuery<Driver[]>({
-    queryKey: ['drivers'], queryFn: fleetApi.drivers, retry: false
+  const { data: drivers = [], isLoading: loadingD, isError: errD } = useQuery<Driver[]>({
+    queryKey: ['drivers'],
+    queryFn: fleetApi.drivers,
+    retry: false,
   });
 
   const filteredVehicles = vehicles.filter(v =>
@@ -25,95 +29,101 @@ export default function FleetPage() {
     `${d.firstName} ${d.lastName}`.toLowerCase().includes(search.toLowerCase())
   );
 
+  const hasError = errV || errD;
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Gestion de la flotte</h2>
-          <p className="text-sm text-gray-500">{vehicles.length} véhicules · {drivers.length} conducteurs</p>
+        <h2 className="text-2xl font-bold text-gray-900">Flotte</h2>
+        <input
+          type="text"
+          placeholder="Rechercher..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-56 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      {hasError && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-yellow-800">
+          Donnees non disponibles. Verifiez la connexion au backend.
         </div>
-      </div>
-      {(errV || errD) && <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-yellow-800 text-sm">Donnees non disponibles — connectez Webfleet pour voir votre flotte.</div>div>}</div>
+      )}
 
-      {/* Tabs */}
-      <div className="flex gap-2">
-        {(['vehicles','drivers'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors
-              ${tab === t ? 'bg-blue-700 text-white' : 'bg-white text-gray-600 hover:bg-gray-100 border'}`}>
-            {t === 'vehicles' ? `🚗 Véhicules (${vehicles.length})` : `👤 Conducteurs (${drivers.length})`}
-          </button>
-        ))}
+      <div className="flex gap-4 border-b pb-2">
+        <button
+          onClick={() => setTab('vehicles')}
+          className={`px-4 py-1 rounded-full text-sm font-medium ${tab === 'vehicles' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          Vehicules ({vehicles.length})
+        </button>
+        <button
+          onClick={() => setTab('drivers')}
+          className={`px-4 py-1 rounded-full text-sm font-medium ${tab === 'drivers' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}
+        >
+          Conducteurs ({drivers.length})
+        </button>
       </div>
-
-      <input placeholder="Rechercher..." value={search} onChange={e => setSearch(e.target.value)}
-        className="w-72 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
 
       {tab === 'vehicles' && (
-        <div className="card p-0 overflow-hidden">
+        loadingV ? <p className="text-gray-400 text-sm">Chargement...</p> :
+        filteredVehicles.length === 0 ? <p className="text-gray-400 text-sm italic">Aucun vehicule trouve.</p> :
+        <div className="bg-white rounded-xl shadow overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr>{['Immatriculation','Marque / Modèle','Énergie','Kilométrage','Statut'].map(h => (
-                <th key={h} className="text-left px-4 py-3 font-medium text-gray-600">{h}</th>
-              ))}</tr>
+            <thead>
+              <tr className="text-left text-gray-500 border-b bg-gray-50">
+                <th className="px-4 py-3">Immatriculation</th>
+                <th className="px-4 py-3">Marque / Modele</th>
+                <th className="px-4 py-3">Carburant</th>
+                <th className="px-4 py-3">Statut</th>
+                <th className="px-4 py-3">Kilometrage</th>
+              </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loadingV && <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Chargement...</td></tr>}
+            <tbody>
               {filteredVehicles.map(v => (
-                <tr key={v.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 font-mono font-semibold text-blue-800">{v.registration}</td>
-                  <td className="px-4 py-3 text-gray-700">{v.brand} {v.model} {v.year ? `(${v.year})` : ''}</td>
-                  <td className="px-4 py-3"><span className="badge-gray">{fuelLabel[v.fuelType || ''] || v.fuelType || '—'}</span></td>
-                  <td className="px-4 py-3 text-gray-600">{Number(v.odometerKm).toLocaleString('fr-FR')} km</td>
+                <tr key={v.id} className="border-b last:border-0 hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium">{v.registration}</td>
+                  <td className="px-4 py-3">{v.brand} {v.model}</td>
+                  <td className="px-4 py-3">{fuelLabel[v.fuelType] || v.fuelType}</td>
                   <td className="px-4 py-3">
-                    <span className={v.status === 'active' ? 'badge-success' : v.status === 'inactive' ? 'badge-warning' : 'badge-gray'}>
+                    <span className={`px-2 py-0.5 rounded-full text-xs ${v.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                       {statusLabel[v.status] || v.status}
                     </span>
                   </td>
+                  <td className="px-4 py-3 text-gray-600">{v.mileage?.toLocaleString('fr-FR')} km</td>
                 </tr>
               ))}
-              {!loadingV && filteredVehicles.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Aucun véhicule trouvé</td></tr>
-              )}
             </tbody>
           </table>
         </div>
       )}
 
       {tab === 'drivers' && (
-        <div className="card p-0 overflow-hidden">
+        loadingD ? <p className="text-gray-400 text-sm">Chargement...</p> :
+        filteredDrivers.length === 0 ? <p className="text-gray-400 text-sm italic">Aucun conducteur trouve.</p> :
+        <div className="bg-white rounded-xl shadow overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr>{['Conducteur','Email','Permis','Score conduite','Statut'].map(h => (
-                <th key={h} className="text-left px-4 py-3 font-medium text-gray-600">{h}</th>
-              ))}</tr>
+            <thead>
+              <tr className="text-left text-gray-500 border-b bg-gray-50">
+                <th className="px-4 py-3">Nom</th>
+                <th className="px-4 py-3">Email</th>
+                <th className="px-4 py-3">Tel</th>
+                <th className="px-4 py-3">Statut</th>
+              </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loadingD && <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Chargement...</td></tr>}
+            <tbody>
               {filteredDrivers.map(d => (
-                <tr key={d.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 font-medium text-gray-800">{d.firstName} {d.lastName}</td>
-                  <td className="px-4 py-3 text-gray-500">{d.email || '—'}</td>
-                  <td className="px-4 py-3 text-gray-600">{d.licenseNumber || '—'}</td>
+                <tr key={d.id} className="border-b last:border-0 hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium">{d.firstName} {d.lastName}</td>
+                  <td className="px-4 py-3 text-gray-600">{d.email}</td>
+                  <td className="px-4 py-3 text-gray-600">{d.phone || '-'}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 bg-gray-200 rounded-full h-1.5">
-                        <div className="h-1.5 rounded-full"
-                          style={{ width: `${d.drivingScore}%`, background: d.drivingScore > 80 ? '#22c55e' : d.drivingScore > 60 ? '#f59e0b' : '#ef4444' }} />
-                      </div>
-                      <span className="text-xs font-medium">{d.drivingScore}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={d.status === 'active' ? 'badge-success' : 'badge-gray'}>
-                      {d.status === 'active' ? 'Actif' : 'Inactif'}
+                    <span className={`px-2 py-0.5 rounded-full text-xs ${d.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                      {statusLabel[d.status] || d.status}
                     </span>
                   </td>
                 </tr>
               ))}
-              {!loadingD && filteredDrivers.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Aucun conducteur trouvé</td></tr>
-              )}
             </tbody>
           </table>
         </div>
