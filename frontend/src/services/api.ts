@@ -33,7 +33,8 @@ export const fleetApi = {
 // ─── Fuel ────────────────────────────────────────────────────────────────────
 export const fuelApi = {
   transactions: () => api.get('/fuel/transactions').then(r => r.data),
-  kpi: () => api.get('/fuel/kpi').then(r => r.data),
+  kpi: (days = 30) => api.get(`/fuel/kpi?days=${days}`).then(r => r.data),
+  fraudAlerts: () => api.get('/fuel/fraud-alerts').then(r => r.data),
 };
 
 // ─── Alerts ──────────────────────────────────────────────────────────────────
