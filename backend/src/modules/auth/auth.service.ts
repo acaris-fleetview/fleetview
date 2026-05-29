@@ -28,7 +28,7 @@ export class AuthService {
           const existing = await this.users.findOne({ where: { email } });
           if (existing) throw new ConflictException('Email deja utilise');
           const passwordHash = await bcrypt.hash(password, 10);
-          const user = this.users.create({ email, passwordHash, name, role: 'admin', active: true });
+          const user = this.users.create({ email, passwordHash, name, role: 'admin', active: true , orgId: 'acaris'});
           await this.users.save(user);
           const payload = { sub: user.id, email: user.email, role: user.role, orgId: user.orgId };
           return {
