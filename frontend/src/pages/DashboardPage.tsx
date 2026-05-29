@@ -19,29 +19,25 @@ const PERIODS: { key: Period; label: string }[] = [
   { key: 'total', label: 'Total' },
 ];
 
-/** Retourne le nombre de mois à afficher selon la période */
 function monthsForPeriod(p: Period): number {
   switch (p) {
-    case '7j':  return 1;
-    case '30j': return 1;
-    case '3m':  return 3;
-    case '6m':  return 6;
-    case '1an': return 12;
+    case '7j':    return 1;
+    case '30j':   return 1;
+    case '3m':    return 3;
+    case '6m':    return 6;
+    case '1an':   return 12;
     case 'total': return 999;
   }
 }
 
-/** Fraction de mois pour les périodes <30j */
 function dayFraction(p: Period): number {
-  if (p === '7j')  return 7 / 30;
-  if (p === '30j') return 1;
+  if (p === '7j') return 7 / 30;
   return 1;
 }
 
 export default function DashboardPage() {
   const [period, setPeriod] = useState<Period>('30j');
 
-  // ---- API calls (days param pour l'API) ----
   const apiDays = period === '7j' ? 7 : period === '30j' ? 30 : period === '3m' ? 90 : period === '6m' ? 180 : period === '1an' ? 365 : 3650;
 
   const { data: fleetStats, isError: errFleet } = useQuery({ queryKey: ['fleet-stats'], queryFn: fleetApi.stats, retry: false });
@@ -50,68 +46,53 @@ export default function DashboardPage() {
 
   const stats = errFleet ? demoData.fleetStats : (fleetStats ?? demoData.fleetStats);
 
-  // ---- Filtrage des données mensuelles selon période ----
+  // Filtrage des mois selon la période
   const filteredMonths = useMemo(() => {
-    const all = [...demoData.monthlyStats]; // already sorted oldest→newest in file? sort just in case
-    const sorted = all.slice().sort((a, b) => a.month.localeCompare(b.month));
+    const sorted = [...demoData.monthlyStats].slice().sort((a, b) => a.month.localeCompare(b.month));
     const n = monthsForPeriod(period);
     return sorted.slice(-Math.min(n, sorted.length));
   }, [period]);
 
-  // ---- KPIs agrégés depuis données réelles filtrées ----
-  const computedKpi = useMemo(() => {
-    const frac = dayFraction(period);
+  // KPIs calculés depuis les données filtrées
+  const computedTelem = useMemo(() => {
     if (filteredMonths.length === 0) return demoData.telemKpi;
-    if (filteredMonths.length === 1 && frac < 1) {
-      const m = filteredMonths[0];
-      return {
-        totalKm:        Math.round(m.totalKm * frac),
-        tripCount:      Math.round(m.tripCount * frac),
-        totalFuelL:     Math.round(m.totalFuelL * frac * 10) / 10,
-        totalCo2Kg:     Math.round(m.totalCo2Kg * frac),
-        avgDrivingScore: m.avgDrivingScore,
-      };
-    }
+    const frac = dayFraction(period);
+    const totalKm   = filteredMonths.reduce((s, m) => s + m.totalKm, 0);
+    const totalFuel = filteredMonths.reduce((s, m) => s + m.totalFuelL, 0);
     return {
-      totalKm:        filteredMonths.reduce((s, m) => s + m.totalKm, 0),
-      tripCount:      filteredMonths.reduce((s, m) => s + m.tripCount, 0),
-      totalFuelL:     Math.round(filteredMonths.reduce((s, m) => s + m.totalFuelL, 0) * 10) / 10,
-      totalCo2Kg:     filteredMonths.reduce((s, m) => s + m.totalCo2Kg, 0),
-      avgDrivingScore: Math.round(filteredMonths.reduce((s, m) => s + m.avgDrivingScore, 0) / filteredMonths.length),
+      totalKm:         Math.round(totalKm * (filteredMonths.length === 1 ? frac : 1)),
+      tripCount:       demoData.telemKpi.tripCount,
+      totalFuelL:      Math.round(totalFuel * (filteredMonths.length === 1 ? frac : 1) * 10) / 10,
+      totalCo2Kg:      Math.round(totalKm * 0.086),  // ~86g CO2/km moyenne flotte diesel
+      avgDrivingScore: demoData.telemKpi.avgDrivingScore,
     };
   }, [filteredMonths, period]);
 
   const computedFuel = useMemo(() => {
-    const frac = dayFraction(period);
     if (filteredMonths.length === 0) return demoData.kpiFuel;
-    if (filteredMonths.length === 1 && frac < 1) {
-      const m = filteredMonths[0];
-      return {
-        totalCostEur:     Math.round(m.totalCostEur * frac * 100) / 100,
-        totalVolumeL:     Math.round(m.totalFuelL * frac * 10) / 10,
-        transactionCount: Math.round(m.tripCount * frac),
-        avgPriceEur:      demoData.kpiFuel.avgPriceEur,
-        openFraudAlerts:  demoData.kpiFuel.openFraudAlerts,
-      };
-    }
+    const frac = dayFraction(period);
     const totalCost = filteredMonths.reduce((s, m) => s + m.totalCostEur, 0);
     const totalVol  = filteredMonths.reduce((s, m) => s + m.totalFuelL, 0);
+    const scaledCost = Math.round(totalCost * (filteredMonths.length === 1 ? frac : 1) * 100) / 100;
+    const scaledVol  = Math.round(totalVol  * (filteredMonths.length === 1 ? frac : 1) * 10)  / 10;
     return {
-      totalCostEur:     Math.round(totalCost * 100) / 100,
-      totalVolumeL:     Math.round(totalVol * 10) / 10,
-      transactionCount: filteredMonths.reduce((s, m) => s + m.tripCount, 0),
-      avgPriceEur:      totalVol > 0 ? Math.round((totalCost / totalVol) * 1000) / 1000 : demoData.kpiFuel.avgPriceEur,
+      totalCostEur:     scaledCost,
+      totalVolumeL:     scaledVol,
+      transactionCount: demoData.kpiFuel.transactionCount,
+      avgPriceEur:      scaledVol > 0 ? Math.round((scaledCost / scaledVol) * 1000) / 1000 : demoData.kpiFuel.avgPriceEur,
       openFraudAlerts:  demoData.kpiFuel.openFraudAlerts,
     };
   }, [filteredMonths, period]);
 
-  const telem = errTelem ? computedKpi : (telemKpi ?? computedKpi);
-  const fuel  = errFuel  ? computedFuel : (fuelKpi  ?? computedFuel);
+  const telem = errTelem ? computedTelem : (telemKpi ?? computedTelem);
+  const fuel  = errFuel  ? computedFuel  : (fuelKpi  ?? computedFuel);
 
   const chartData = filteredMonths.map(m => ({ month: m.month, km: m.totalKm, fuel: m.totalFuelL, cost: m.totalCostEur }));
 
   const fmt = (n?: number, dec = 0) => n != null ? n.toLocaleString('fr-FR', { maximumFractionDigits: dec }) : '—';
   const usingDemo = errFleet || errTelem || errFuel;
+
+  const periodLabel = PERIODS.find(p => p.key === period)?.label ?? '';
 
   return (
     <div className="p-6 space-y-6">
@@ -119,15 +100,7 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Tableau de bord</h2>
-          <p className="text-sm text-gray-500">
-            {PERIODS.find(p => p.key === period)?.label}
-            {period === '7j' && ' — 7 derniers jours'}
-            {period === '30j' && ' — 30 derniers jours'}
-            {period === '3m' && ' — 3 derniers mois'}
-            {period === '6m' && ' — 6 derniers mois'}
-            {period === '1an' && ' — 12 derniers mois'}
-            {period === 'total' && ' — toutes les données disponibles'}
-          </p>
+          <p className="text-sm text-gray-500">{periodLabel}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {usingDemo && (
@@ -135,7 +108,6 @@ export default function DashboardPage() {
               📊 Données réelles Tankyou
             </span>
           )}
-          {/* Boutons de période */}
           <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 gap-1">
             {PERIODS.map(p => (
               <button
@@ -181,7 +153,7 @@ export default function DashboardPage() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
-          <h3 className="font-semibold text-gray-800 mb-4">Kilométrage — {PERIODS.find(p => p.key === period)?.label}</h3>
+          <h3 className="font-semibold text-gray-800 mb-4">Kilométrage — {periodLabel}</h3>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -193,7 +165,7 @@ export default function DashboardPage() {
           </ResponsiveContainer>
         </div>
         <div className="card">
-          <h3 className="font-semibold text-gray-800 mb-4">Carburant — {PERIODS.find(p => p.key === period)?.label}</h3>
+          <h3 className="font-semibold text-gray-800 mb-4">Carburant — {periodLabel}</h3>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
