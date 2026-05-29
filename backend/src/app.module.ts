@@ -22,7 +22,7 @@ import { ConnectorsModule } from './modules/connectors/connectors.module';
         username: config.get('DB_USER', 'fleetview'),
         password: config.get('DB_PASSWORD'),
         autoLoadEntities: true,
-        synchronize: false,
+        synchronize: true,
         logging: config.get('NODE_ENV') === 'development',
       }),
     }),
