@@ -9,16 +9,11 @@ api.interceptors.request.use(cfg => {
   return cfg;
 });
 
-// Redirect to login on 401
+// On ne redirige plus vers /login sur 401 des endpoints de données
+// Les pages gèrent l'erreur avec retry:false + isError (bannière jaune)
 api.interceptors.response.use(
   r => r,
-  err => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem('access_token');
-      window.location.href = '/login';
-    }
-    return Promise.reject(err);
-  }
+  err => Promise.reject(err),
 );
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -35,25 +30,20 @@ export const fleetApi = {
   stats: () => api.get('/fleet/stats').then(r => r.data),
 };
 
-// ─── Telemetry ───────────────────────────────────────────────────────────────
-export const telemetryApi = {
-  trips: (vehicleId: string, from?: string, to?: string) =>
-    api.get(`/telemetry/trips/${vehicleId}`, { params: { from, to } }).then(r => r.data),
-  kpi: (days = 30) => api.get('/telemetry/kpi', { params: { days } }).then(r => r.data),
-};
-
-// ─── Fuel ─────────────────────────────────────────────────────────────────────
+// ─── Fuel ────────────────────────────────────────────────────────────────────
 export const fuelApi = {
-  transactions: (from?: string, to?: string, vehicleId?: string) =>
-    api.get('/fuel/transactions', { params: { from, to, vehicleId } }).then(r => r.data),
-  fraudAlerts: (status?: string) =>
-    api.get('/fuel/fraud-alerts', { params: { status } }).then(r => r.data),
-  kpi: (days = 30) => api.get('/fuel/kpi', { params: { days } }).then(r => r.data),
+  transactions: () => api.get('/fuel/transactions').then(r => r.data),
+  kpi: () => api.get('/fuel/kpi').then(r => r.data),
 };
 
-// ─── Connectors ──────────────────────────────────────────────────────────────
-export const connectorsApi = {
-  positions: () => api.get('/connectors/webfleet/positions').then(r => r.data),
+// ─── Alerts ──────────────────────────────────────────────────────────────────
+export const alertsApi = {
+  list: () => api.get('/alerts').then(r => r.data),
+};
+
+// ─── Map ─────────────────────────────────────────────────────────────────────
+export const mapApi = {
+  positions: () => api.get('/map/positions').then(r => r.data),
 };
 
 export default api;
