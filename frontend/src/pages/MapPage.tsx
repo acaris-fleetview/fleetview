@@ -2,9 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { connectorsApi, fleetApi } from '../services/api';
+import { connectorsApi } from '../services/api';
 
-// Set your Mapbox token in VITE_MAPBOX_TOKEN env variable
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
 export default function MapPage() {
@@ -13,29 +12,27 @@ export default function MapPage() {
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [selected, setSelected] = useState<any>(null);
 
-    const { data: positions = [], refetch, isLoading, isError: errMap } = useQuery({
+  const { data: positions = [], refetch, isLoading, isError: errMap } = useQuery({
     queryKey: ['positions'],
     queryFn: connectorsApi.positions,
-    refetchInterval: 120_000, // refresh every 2 min, retry: false
+    refetchInterval: 120_000,
+    retry: false,
   });
 
-  // Init map once
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     mapRef.current = new mapboxgl.Map({
       container: containerRef.current,
       style: 'mapbox://styles/mapbox/light-v11',
-      center: [2.3488, 48.8534], // Paris by default
+      center: [2.3488, 48.8534],
       zoom: 6,
     });
     mapRef.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
     mapRef.current.addControl(new mapboxgl.FullscreenControl(), 'top-right');
   }, []);
 
-  // Update markers when positions change
   useEffect(() => {
     if (!mapRef.current || positions.length === 0) return;
-    // Remove old markers
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
 
@@ -44,7 +41,6 @@ export default function MapPage() {
       const lat = pos.lat || pos.latitude;
       const lng = pos.lng || pos.longitude;
       const el = document.createElement('div');
-      el.className = 'vehicle-marker';
       el.style.cssText = `
         width:32px;height:32px;background:#1d4ed8;border:2px solid white;
         border-radius:50%;cursor:pointer;display:flex;align-items:center;
@@ -58,7 +54,6 @@ export default function MapPage() {
       markersRef.current.push(marker);
     });
 
-    // Fit bounds if multiple vehicles
     if (positions.length > 1) {
       const lats = positions.map((p: any) => p.lat || p.latitude).filter(Boolean);
       const lngs = positions.map((p: any) => p.lng || p.longitude).filter(Boolean);
@@ -75,18 +70,24 @@ export default function MapPage() {
     <div className="p-6 space-y-4 h-full flex flex-col">
       <div className="flex items-center justify-between flex-shrink-0">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Carte & suivi GPS</h2>
-          <p className="text-sm text-gray-500">{positions.length} véhicules localisés · Actualisation auto toutes les 2 min</p>
+          <h2 className="text-2xl font-bold text-gray-900">Carte et suivi GPS</h2>
+          <p className="text-sm text-gray-500">{positions.length} vehicules localises</p>
         </div>
         <button onClick={() => refetch()} className="btn-secondary text-sm">
-          🔄 Actualiser
+          Actualiser
         </button>
       </div>
 
+      {errMap && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-sm text-yellow-800">
+          Positions GPS non disponibles — connectez Webfleet ou un autre telemetre GPS.
+        </div>
+      )}
+
       {tokenMissing && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
-          ⚠️ Ajoutez <code className="font-mono bg-amber-100 px-1 rounded">VITE_MAPBOX_TOKEN=votre_token</code> dans votre fichier <code className="font-mono">.env</code> pour activer la carte.
-          Créez un token gratuit sur <a href="https://mapbox.com" className="underline" target="_blank">mapbox.com</a>.
+          Ajoutez VITE_MAPBOX_TOKEN dans votre fichier .env pour activer la carte.
+          Creez un token gratuit sur mapbox.com.
         </div>
       )}
 
@@ -104,7 +105,7 @@ export default function MapPage() {
           <div className="flex items-start justify-between">
             <div>
               <p className="font-semibold text-gray-800">
-                {selected.registration || selected.objectUid || 'Véhicule'}
+                {selected.registration || selected.objectUid || 'Vehicule'}
               </p>
               <p className="text-sm text-gray-600 mt-1">
                 Position : {(selected.lat || selected.latitude)?.toFixed(5)}, {(selected.lng || selected.longitude)?.toFixed(5)}
@@ -114,11 +115,11 @@ export default function MapPage() {
               )}
               {selected.recordedAt && (
                 <p className="text-xs text-gray-400 mt-1">
-                  Dernière position : {new Date(selected.recordedAt).toLocaleString('fr-FR')}
+                  Derniere position : {new Date(selected.recordedAt).toLocaleString('fr-FR')}
                 </p>
               )}
             </div>
-            <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+            <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600">X</button>
           </div>
         </div>
       )}
