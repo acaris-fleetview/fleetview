@@ -17,7 +17,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/" element={
+      <Route path="/*" element={
         <Protected>
           <Layout>
             <Routes>
