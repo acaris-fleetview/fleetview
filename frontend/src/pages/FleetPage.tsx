@@ -10,11 +10,11 @@ export default function FleetPage() {
   const [tab, setTab] = useState<'vehicles'|'drivers'>('vehicles');
   const [search, setSearch] = useState('');
 
-  const { data: vehicles = [], isLoading: loadingV } = useQuery<Vehicle[]>({
-    queryKey: ['vehicles'], queryFn: fleetApi.vehicles
+  const { data: vehicles = [], isLoading: loadingV }, isError: errV = useQuery<Vehicle[]>({
+    queryKey: ['vehicles'], queryFn: fleetApi.vehicles, retry: false
   });
-  const { data: drivers = [], isLoading: loadingD } = useQuery<Driver[]>({
-    queryKey: ['drivers'], queryFn: fleetApi.drivers
+    const { data: drivers = [], isLoading: loadingD, isError: errD } = useQuery<Driver[]>({
+    queryKey: ['drivers'], queryFn: fleetApi.drivers, retry: false
   });
 
   const filteredVehicles = vehicles.filter(v =>
@@ -33,6 +33,7 @@ export default function FleetPage() {
           <p className="text-sm text-gray-500">{vehicles.length} véhicules · {drivers.length} conducteurs</p>
         </div>
       </div>
+      {(errV || errD) && <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-yellow-800 text-sm">Donnees non disponibles — connectez Webfleet pour voir votre flotte.</div>div>}</div>
 
       {/* Tabs */}
       <div className="flex gap-2">
