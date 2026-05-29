@@ -7,6 +7,7 @@ import MapPage from './pages/MapPage';
 import FuelPage from './pages/FuelPage';
 import FleetPage from './pages/FleetPage';
 import AlertsPage from './pages/AlertsPage';
+import TourneesPage from './pages/TourneesPage';
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -17,7 +18,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/*" element={
+      <Route path="/" element={
         <Protected>
           <Layout>
             <Routes>
@@ -26,10 +27,4 @@ export default function App() {
               <Route path="fuel" element={<FuelPage />} />
               <Route path="fleet" element={<FleetPage />} />
               <Route path="alerts" element={<AlertsPage />} />
-            </Routes>
-          </Layout>
-        </Protected>
-      } />
-    </Routes>
-  );
-}
+              <Route path="tournees" element={

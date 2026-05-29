@@ -8,6 +8,7 @@ const navItems = [
   { to: '/fuel',      label: 'Carburant',        icon: '⛽' },
   { to: '/fleet',     label: 'Flotte',           icon: '🚗' },
   { to: '/alerts',    label: 'Alertes',          icon: '🔔' },
+  { to: '/tournees',  label: 'Tournées MTS-1',   icon: '🚚' },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -45,9 +46,4 @@ export default function Layout({ children }: { children: ReactNode }) {
         </div>
       </aside>
       {/* Main */}
-      <main className="flex-1 overflow-auto bg-gray-50">
-        {children}
-      </main>
-    </div>
-  );
-}
+      <main className="flex-1 overflow-aut
