@@ -37,6 +37,16 @@ export const fuelApi = {
   fraudAlerts: () => api.get('/fuel/fraud-alerts').then(r => r.data),
 };
 
+// ─── Telemetry ───────────────────────────────────────────────────────────────
+export const telemetryApi = {
+  kpi: (days = 30) => api.get(`/telemetry/kpi?days=${days}`).then(r => r.data),
+};
+
+// ─── Connectors / Map ────────────────────────────────────────────────────────
+export const connectorsApi = {
+  positions: () => api.get('/connectors/positions').then(r => r.data),
+};
+
 // ─── Alerts ──────────────────────────────────────────────────────────────────
 export const alertsApi = {
   list: () => api.get('/alerts').then(r => r.data),
