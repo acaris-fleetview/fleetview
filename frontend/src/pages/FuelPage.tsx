@@ -42,7 +42,7 @@ export default function FuelPage() {
         <KpiCard title="Volume total (30j)" value={`${fmt(kpi?.totalVolumeL)} L`} icon="fuel" color="blue" />
         <KpiCard title="Prix moyen" value={`${fmt(kpi?.avgPriceEur, 3)} EUR/L`} icon="euro" color="green" />
         <KpiCard title="Cout total (30j)" value={`${fmt(kpi?.totalCostEur)} EUR`} icon="receipt" color="orange" />
-        <KpiCard title="Alertes fraude" value={String(kpi?.fraudAlertsCount ?? 0)} icon="alert" color="red" />
+        <KpiCard title="Alertes fraude" value={String(kpi?.openFraudAlerts ?? 0)} icon="alert" color="red" />
       </div>
 
       <div className="bg-white rounded-xl shadow p-4">
@@ -69,15 +69,15 @@ export default function FuelPage() {
             <tbody>
               {transactions.map(t => (
                 <tr key={t.id} className="border-b last:border-0 hover:bg-gray-50">
-                  <td className="py-2 text-gray-600">{fmtDate(t.date)}</td>
-                  <td>{t.vehiclePlate}</td>
-                  <td className="text-gray-600">{t.stationName}</td>
+                  <td className="py-2 text-gray-600">{fmtDate(t.transactedAt)}</td>
+                  <td>{t.vehicleId || '-'}</td>
+                  <td className="text-gray-600">{t.stationName || '-'}</td>
                   <td>{fmt(t.volumeL, 1)} L</td>
-                  <td>{fmt(t.pricePerL, 3)} EUR</td>
+                  <td>{fmt(t.unitPriceEur, 3)} EUR</td>
                   <td className="font-medium">{fmt(t.totalEur)} EUR</td>
                   <td>
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${t.suspicious ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                      {t.suspicious ? 'Suspect' : 'OK'}
+                    <span className={`px-2 py-0.5 rounded-full text-xs ${t.fraudStatus !== 'clear' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                      {t.fraudStatus !== 'clear' ? 'Suspect' : 'OK'}
                     </span>
                   </td>
                 </tr>
@@ -93,22 +93,26 @@ export default function FuelPage() {
             <thead>
               <tr className="text-left text-gray-500 border-b">
                 <th className="pb-2">Date</th>
-                <th>Vehicule</th>
                 <th>Type</th>
-                <th>Montant</th>
-                <th>Gravite</th>
+                <th>Description</th>
+                <th>Score risque</th>
+                <th>Statut</th>
               </tr>
             </thead>
             <tbody>
               {fraudAlerts.map(a => (
                 <tr key={a.id} className="border-b last:border-0 hover:bg-gray-50">
-                  <td className="py-2 text-gray-600">{fmtDate(a.date)}</td>
-                  <td>{a.vehiclePlate}</td>
-                  <td>{a.type}</td>
-                  <td>{fmt(a.amountEur)} EUR</td>
+                  <td className="py-2 text-gray-600">{fmtDate(a.createdAt)}</td>
+                  <td>{a.alertType}</td>
+                  <td className="text-gray-600 text-xs">{a.description}</td>
                   <td>
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${a.severity === 'high' ? 'bg-red-100 text-red-700' : a.severity === 'medium' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                      {a.severity}
+                    <span className={`px-2 py-0.5 rounded-full text-xs ${a.riskScore >= 80 ? 'bg-red-100 text-red-700' : a.riskScore >= 50 ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                      {a.riskScore}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`px-2 py-0.5 rounded-full text-xs ${a.status === 'open' ? 'bg-red-100 text-red-700' : a.status === 'acknowledged' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                      {a.status === 'open' ? 'Ouverte' : a.status === 'acknowledged' ? 'Reconnue' : 'Resolue'}
                     </span>
                   </td>
                 </tr>
