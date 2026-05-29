@@ -13,10 +13,10 @@ export default function MapPage() {
   const markersRef = useRef<mapboxgl.Marker[]>([]);
   const [selected, setSelected] = useState<any>(null);
 
-  const { data: positions = [], refetch, isLoading } = useQuery({
+    const { data: positions = [], refetch, isLoading, isError: errMap } = useQuery({
     queryKey: ['positions'],
     queryFn: connectorsApi.positions,
-    refetchInterval: 120_000, // refresh every 2 min
+    refetchInterval: 120_000, // refresh every 2 min, retry: false
   });
 
   // Init map once
