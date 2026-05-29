@@ -33,3 +33,5 @@ class RegisterDto {
           return this.auth.register(dto.email, dto.password, dto.name);
     }
 }
+
+// end
