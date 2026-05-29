@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { fuelApi } from '../services/api';
 
 export default function AlertsPage() {
-  const { data: fraudAlerts = [] } = useQuery({
-    queryKey: ['fraud-alerts-all'], queryFn: () => fuelApi.fraudAlerts()
+  const { data: fraudAlerts = [] } = useQuery(, isError: errAlerts{
+    queryKey: ['fraud-alerts-all'], queryFn: () => fuelApi.fraudAlerts(), retry: false
   });
 
   const open = fraudAlerts.filter((a: any) => a.status === 'open');
@@ -11,6 +11,7 @@ export default function AlertsPage() {
   return (
     <div className="p-6 space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">Alertes</h2>
+      {errAlerts && <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-yellow-800 text-sm mb-4">Alertes non disponibles — connectez les APIs pour les voir.</div>div>}</div>
       <div className="grid grid-cols-3 gap-4">
         <div className="card text-center">
           <p className="text-3xl font-bold text-red-600">{open.length}</p>
