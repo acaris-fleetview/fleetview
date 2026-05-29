@@ -23,7 +23,7 @@ export default function FleetPage() {
 
   const filteredVehicles = vehicles.filter(v =>
     v.registration.toLowerCase().includes(search.toLowerCase()) ||
-    `${v.brand} ${v.model}`.toLowerCase().includes(search.toLowerCase())
+    `${v.brand ?? ''} ${v.model ?? ''}`.toLowerCase().includes(search.toLowerCase())
   );
   const filteredDrivers = drivers.filter(d =>
     `${d.firstName} ${d.lastName}`.toLowerCase().includes(search.toLowerCase())
@@ -83,14 +83,14 @@ export default function FleetPage() {
               {filteredVehicles.map(v => (
                 <tr key={v.id} className="border-b last:border-0 hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium">{v.registration}</td>
-                  <td className="px-4 py-3">{v.brand} {v.model}</td>
-                  <td className="px-4 py-3">{fuelLabel[v.fuelType] || v.fuelType}</td>
+                  <td className="px-4 py-3">{v.brand ?? '-'} {v.model ?? ''}</td>
+                  <td className="px-4 py-3">{v.fuelType ? (fuelLabel[v.fuelType] ?? v.fuelType) : '-'}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded-full text-xs ${v.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                      {statusLabel[v.status] || v.status}
+                      {statusLabel[v.status] ?? v.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{v.mileage?.toLocaleString('fr-FR')} km</td>
+                  <td className="px-4 py-3 text-gray-600">{v.odometerKm?.toLocaleString('fr-FR')} km</td>
                 </tr>
               ))}
             </tbody>
@@ -115,11 +115,11 @@ export default function FleetPage() {
               {filteredDrivers.map(d => (
                 <tr key={d.id} className="border-b last:border-0 hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium">{d.firstName} {d.lastName}</td>
-                  <td className="px-4 py-3 text-gray-600">{d.email}</td>
-                  <td className="px-4 py-3 text-gray-600">{d.phone || '-'}</td>
+                  <td className="px-4 py-3 text-gray-600">{d.email ?? '-'}</td>
+                  <td className="px-4 py-3 text-gray-600">{d.phone ?? '-'}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded-full text-xs ${d.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                      {statusLabel[d.status] || d.status}
+                      {statusLabel[d.status] ?? d.status}
                     </span>
                   </td>
                 </tr>
