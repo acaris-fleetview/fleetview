@@ -1,6 +1,27 @@
+import { useState, useEffect } from 'react';
 import KpiCard from '../components/common/KpiCard';
 
-const tournees = [
+const API_BASE = import.meta.env.VITE_API_URL ?? 'https://fleetview-backend-production.up.railway.app/api';
+
+interface Round {
+  id?: string;
+  nom?: string;
+  name?: string;
+  depot?: number;
+  pdl?: number;
+  customerOrdersCount?: number;
+  statut?: string;
+  status?: string;
+  km?: number;
+  distanceKm?: number;
+  kg?: number;
+  weightKg?: number;
+  m3?: number;
+  volumeM3?: number;
+}
+
+// Données statiques de fallback (2026-05-29)
+const STATIC_TOURNEES: Round[] = [
   { nom: 'ARGENTEUIL',    depot: 2, pdl: 11, statut: 'En cours',  km: 0.06,   kg: 6,    m3: 4.78  },
   { nom: 'CAMION SIT 491',depot: 2, pdl: 7,  statut: 'En cours',  km: 37.68,  kg: 5,    m3: 5.83  },
   { nom: 'CAMION SIT 728',depot: 2, pdl: 10, statut: 'Terminée',  km: 80.88,  kg: 7,    m3: 9.96  },
@@ -15,12 +36,51 @@ const tournees = [
   { nom: 'CAMION SIT 946',depot: 2, pdl: 1,  statut: 'En cours',  km: 57.06,  kg: 1,    m3: 20.00 },
 ];
 
-const totalKm = tournees.reduce((s, t) => s + t.km, 0);
-const totalPdl = tournees.reduce((s, t) => s + t.pdl, 0);
-const enCours = tournees.filter(t => t.statut === 'En cours').length;
-const terminees = tournees.filter(t => t.statut === 'Terminée').length;
+function normalizeRound(r: Round) {
+  const statusRaw = r.statut ?? r.status ?? '';
+  const statut = statusRaw === 'completed' || statusRaw === 'Terminée' ? 'Terminée' : 'En cours';
+  return {
+    nom:    r.nom ?? r.name ?? '—',
+    depot:  r.depot ?? 2,
+    pdl:    r.pdl ?? r.customerOrdersCount ?? 0,
+    statut,
+    km:     r.km ?? r.distanceKm ?? 0,
+    kg:     r.kg ?? r.weightKg ?? 0,
+    m3:     r.m3 ?? r.volumeM3 ?? 0,
+  };
+}
 
 export default function TourneesPage() {
+  const [tournees, setTournees] = useState(STATIC_TOURNEES.map(normalizeRound));
+  const [loading, setLoading] = useState(true);
+  const [live, setLive] = useState(false);
+  const [anomaliesCount, setAnomaliesCount] = useState(2);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
+    Promise.all([
+      fetch(`${API_BASE}/connectors/mts1/rounds`, { headers }).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`${API_BASE}/connectors/mts1/anomalies`, { headers }).then(r => r.ok ? r.json() : null).catch(() => null),
+    ])
+      .then(([rounds, anomalies]) => {
+        if (Array.isArray(rounds) && rounds.length > 0) {
+          setTournees(rounds.map(normalizeRound));
+          setLive(true);
+        }
+        if (Array.isArray(anomalies)) {
+          setAnomaliesCount(anomalies.length);
+        }
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const totalKm   = tournees.reduce((s, t) => s + t.km, 0);
+  const totalPdl  = tournees.reduce((s, t) => s + t.pdl, 0);
+  const enCours   = tournees.filter(t => t.statut === 'En cours').length;
+  const terminees = tournees.filter(t => t.statut === 'Terminée').length;
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -28,48 +88,35 @@ export default function TourneesPage() {
         <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-xl">🚚</div>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Tournées MTS-1</h1>
-          <p className="text-sm text-gray-500">Livraisons du jour — {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          <p className="text-sm text-gray-500">
+            Livraisons du jour — {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
         </div>
-        <a
-          href="https://console.mts-1.com/rounds"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="ml-auto flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition-colors"
-        >
-          Ouvrir MTS-1 ↗
-        </a>
+        <div className="ml-auto flex items-center gap-3">
+          {loading ? (
+            <span className="text-xs text-gray-400 animate-pulse">Chargement…</span>
+          ) : live ? (
+            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">● Live MTS-1</span>
+          ) : (
+            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full font-medium">⚠ Données statiques</span>
+          )}
+          <a
+            href="https://console.mts-1.com/rounds"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            Ouvrir MTS-1 ↗
+          </a>
+        </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard
-          title="Tournées aujourd'hui"
-          value={tournees.length}
-          subtitle="au total"
-          icon="🗺️"
-          color="orange"
-        />
-        <KpiCard
-          title="En cours"
-          value={enCours}
-          subtitle={`${terminees} terminée${terminees > 1 ? 's' : ''}`}
-          icon="🔄"
-          color="blue"
-        />
-        <KpiCard
-          title="Points de livraison"
-          value={totalPdl}
-          subtitle="30 derniers jours : 724"
-          icon="📦"
-          color="green"
-        />
-        <KpiCard
-          title="Distance totale"
-          value={`${totalKm.toFixed(0)} km`}
-          subtitle="Journée en cours"
-          icon="📏"
-          color="purple"
-        />
+        <KpiCard title="Tournées aujourd'hui" value={tournees.length} subtitle="au total" icon="🗺️" color="orange" />
+        <KpiCard title="En cours" value={enCours} subtitle={`${terminees} terminée${terminees > 1 ? 's' : ''}`} icon="🔄" color="blue" />
+        <KpiCard title="Points de livraison" value={totalPdl} subtitle="30 derniers jours : 724" icon="📦" color="green" />
+        <KpiCard title="Distance totale" value={`${totalKm.toFixed(0)} km`} subtitle="Journée en cours" icon="📏" color="purple" />
       </div>
 
       {/* Stats banner */}
@@ -119,50 +166,4 @@ export default function TourneesPage() {
                   <td className="px-6 py-3 font-medium text-gray-900">{t.nom}</td>
                   <td className="px-6 py-3 text-center text-gray-600">{t.depot}</td>
                   <td className="px-6 py-3 text-center font-semibold text-gray-800">{t.pdl}</td>
-                  <td className="px-6 py-3 text-center">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      t.statut === 'Terminée'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-blue-100 text-blue-700'
-                    }`}>
-                      {t.statut === 'Terminée' ? '✓' : '●'} {t.statut}
-                    </span>
-                  </td>
-                  <td className="px-6 py-3 text-right text-gray-600">{t.km.toFixed(2)} km</td>
-                  <td className="px-6 py-3 text-right text-gray-600">{t.kg} kg</td>
-                  <td className="px-6 py-3 text-right text-gray-600">{t.m3.toFixed(2)} m³</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-gray-50 font-semibold text-gray-700 text-xs">
-                <td className="px-6 py-3">Total</td>
-                <td className="px-6 py-3 text-center">{tournees.reduce((s,t)=>s+t.depot,0)}</td>
-                <td className="px-6 py-3 text-center">{totalPdl}</td>
-                <td className="px-6 py-3"></td>
-                <td className="px-6 py-3 text-right">{totalKm.toFixed(2)} km</td>
-                <td className="px-6 py-3 text-right">{tournees.reduce((s,t)=>s+t.kg,0).toFixed(1)} kg</td>
-                <td className="px-6 py-3 text-right">{tournees.reduce((s,t)=>s+t.m3,0).toFixed(2)} m³</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </div>
-
-      {/* Anomalies */}
-      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-        <span className="text-2xl">⚠️</span>
-        <div>
-          <p className="font-semibold text-amber-800">2 anomalies terrain non traitées</p>
-          <p className="text-sm text-amber-600 mt-0.5">
-            Consultez le détail sur MTS-1 →{' '}
-            <a href="https://console.mts-1.com/customerOrdersWarning" target="_blank" rel="noopener noreferrer"
-              className="underline hover:text-amber-800">
-              Voir les anomalies
-            </a>
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
+          
