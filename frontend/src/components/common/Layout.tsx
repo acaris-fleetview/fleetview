@@ -7,10 +7,10 @@ const navItems = [
   { to: '/map',       label: 'Carte & GPS',     icon: '🗺️' },
   { to: '/fuel',      label: 'Carburant',        icon: '⛽' },
   { to: '/fleet',     label: 'Flotte',           icon: '🚗' },
+  { to: '/drivers',   label: 'Conducteurs',      icon: '👤' },
   { to: '/alerts',    label: 'Alertes',          icon: '🔔' },
   { to: '/tournees',  label: 'Tournées MTS-1',   icon: '🚚' },
-  { to: '/entretien', label: 'Entretien',         icon: '🔧' },
-  { to: '/drivers',   label: 'Conducteurs',       icon: '👤' },
+  { to: '/entretien', label: 'Entretien',        icon: '🔧' },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -22,7 +22,6 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Sidebar */}
       <aside className="w-60 bg-blue-900 text-white flex flex-col flex-shrink-0">
         <div className="px-6 py-5 border-b border-blue-800">
           <h1 className="text-xl font-bold">FleetView</h1>
@@ -43,4 +42,13 @@ export default function Layout({ children }: { children: ReactNode }) {
           <p className="text-blue-400 text-xs">{user?.role}</p>
           <button onClick={handleLogout}
             className="mt-2 text-xs text-blue-300 hover:text-white transition-colors">
-    
+            Déconnexion
+          </button>
+        </div>
+      </aside>
+      <main className="flex-1 overflow-auto bg-gray-50">
+        {children}
+      </main>
+    </div>
+  );
+}
