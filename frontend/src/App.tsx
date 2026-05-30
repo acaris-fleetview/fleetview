@@ -27,4 +27,13 @@ export default function App() {
               <Route path="map" element={<MapPage />} />
               <Route path="fuel" element={<FuelPage />} />
               <Route path="fleet" element={<FleetPage />} />
-              <Route path="alerts" element={<AlertsPage />
+              <Route path="alerts" element={<AlertsPage />} />
+              <Route path="tournees" element={<TourneesPage />} />
+              <Route path="entretien" element={<EntretienPage />} />
+            </Routes>
+          </Layout>
+        </Protected>
+      } />
+    </Routes>
+  );
+}

@@ -45,4 +45,11 @@ export default function Layout({ children }: { children: ReactNode }) {
             Déconnexion
           </button>
         </div>
-      </as
+      </aside>
+      {/* Main */}
+      <main className="flex-1 overflow-auto bg-gray-50">
+        {children}
+      </main>
+    </div>
+  );
+}
