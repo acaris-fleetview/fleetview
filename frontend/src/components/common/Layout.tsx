@@ -9,6 +9,7 @@ const navItems = [
   { to: '/fleet',     label: 'Flotte',           icon: '🚗' },
   { to: '/alerts',    label: 'Alertes',          icon: '🔔' },
   { to: '/tournees',  label: 'Tournées MTS-1',   icon: '🚚' },
+  { to: '/entretien', label: 'Entretien',         icon: '🔧' },
 ];
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -44,6 +45,4 @@ export default function Layout({ children }: { children: ReactNode }) {
             Déconnexion
           </button>
         </div>
-      </aside>
-      {/* Main */}
-      <main className="flex-1 overflow-aut
+      </as
