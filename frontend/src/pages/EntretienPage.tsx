@@ -65,7 +65,7 @@ const vehicleSeeds: Record<string, Partial<Record<CheckType, number>>> = {
 
 function buildVehicleChecks(): VehicleChecks[] {
   return demoData.vehicles.slice(0, 12).map((v, i) => {
-    const seed = vehicleSeeds[v.plate] || {};
+    const seed = vehicleSeeds[v.registration] || {};
     const checks: Check[] = CHECK_DEFS.map(def => {
       const days = seed[def.type] ?? (seedOffset.default[def.type] + (i * 7 % 60) - 30);
       const echeance = new Date(today);
@@ -78,7 +78,7 @@ function buildVehicleChecks(): VehicleChecks[] {
         periodiciteMonths: def.periodMonths,
       };
     });
-    return { immat: v.plate, nom: v.name || v.plate, checks };
+    return { immat: v.registration, nom: v.brand + ' ' + v.model, checks };
   });
 }
 

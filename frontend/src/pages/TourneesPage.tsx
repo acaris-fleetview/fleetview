@@ -20,7 +20,6 @@ interface Round {
   volumeM3?: number;
 }
 
-// Données statiques de fallback (2026-05-29)
 const STATIC_TOURNEES: Round[] = [
   { nom: 'ARGENTEUIL',    depot: 2, pdl: 11, statut: 'En cours',  km: 0.06,   kg: 6,    m3: 4.78  },
   { nom: 'CAMION SIT 491',depot: 2, pdl: 7,  statut: 'En cours',  km: 37.68,  kg: 5,    m3: 5.83  },
@@ -40,13 +39,13 @@ function normalizeRound(r: Round) {
   const statusRaw = r.statut ?? r.status ?? '';
   const statut = statusRaw === 'completed' || statusRaw === 'Terminée' ? 'Terminée' : 'En cours';
   return {
-    nom:    r.nom ?? r.name ?? '—',
-    depot:  r.depot ?? 2,
-    pdl:    r.pdl ?? r.customerOrdersCount ?? 0,
+    nom:   r.nom ?? r.name ?? '—',
+    depot: r.depot ?? 2,
+    pdl:   r.pdl ?? r.customerOrdersCount ?? 0,
     statut,
-    km:     r.km ?? r.distanceKm ?? 0,
-    kg:     r.kg ?? r.weightKg ?? 0,
-    m3:     r.m3 ?? r.volumeM3 ?? 0,
+    km:    r.km ?? r.distanceKm ?? 0,
+    kg:    r.kg ?? r.weightKg ?? 0,
+    m3:    r.m3 ?? r.volumeM3 ?? 0,
   };
 }
 
@@ -83,7 +82,6 @@ export default function TourneesPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-xl">🚚</div>
         <div>
@@ -111,7 +109,6 @@ export default function TourneesPage() {
         </div>
       </div>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard title="Tournées aujourd'hui" value={tournees.length} subtitle="au total" icon="🗺️" color="orange" />
         <KpiCard title="En cours" value={enCours} subtitle={`${terminees} terminée${terminees > 1 ? 's' : ''}`} icon="🔄" color="blue" />
@@ -119,7 +116,6 @@ export default function TourneesPage() {
         <KpiCard title="Distance totale" value={`${totalKm.toFixed(0)} km`} subtitle="Journée en cours" icon="📏" color="purple" />
       </div>
 
-      {/* Stats banner */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-center">
           <p className="text-xs text-blue-500 font-medium uppercase tracking-wide mb-1">Points de livraison (avril 2026)</p>
@@ -138,7 +134,6 @@ export default function TourneesPage() {
         </div>
       </div>
 
-      {/* Tournées table */}
       <div className="card overflow-hidden p-0">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <h2 className="font-semibold text-gray-800">Tournées du jour</h2>
@@ -166,4 +161,51 @@ export default function TourneesPage() {
                   <td className="px-6 py-3 font-medium text-gray-900">{t.nom}</td>
                   <td className="px-6 py-3 text-center text-gray-600">{t.depot}</td>
                   <td className="px-6 py-3 text-center font-semibold text-gray-800">{t.pdl}</td>
-          
+                  <td className="px-6 py-3 text-center">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      t.statut === 'Terminée' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                    }`}>
+                      {t.statut === 'Terminée' ? '✓' : '●'} {t.statut}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3 text-right text-gray-600">{t.km.toFixed(2)} km</td>
+                  <td className="px-6 py-3 text-right text-gray-600">{t.kg} kg</td>
+                  <td className="px-6 py-3 text-right text-gray-600">{t.m3.toFixed(2)} m³</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="bg-gray-50 font-semibold text-gray-700 text-xs">
+                <td className="px-6 py-3">Total</td>
+                <td className="px-6 py-3 text-center">{tournees.reduce((s, t) => s + t.depot, 0)}</td>
+                <td className="px-6 py-3 text-center">{totalPdl}</td>
+                <td className="px-6 py-3"></td>
+                <td className="px-6 py-3 text-right">{totalKm.toFixed(2)} km</td>
+                <td className="px-6 py-3 text-right">{tournees.reduce((s, t) => s + t.kg, 0).toFixed(1)} kg</td>
+                <td className="px-6 py-3 text-right">{tournees.reduce((s, t) => s + t.m3, 0).toFixed(2)} m³</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {anomaliesCount > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+          <span className="text-2xl">⚠️</span>
+          <div>
+            <p className="font-semibold text-amber-800">
+              {anomaliesCount} anomalie{anomaliesCount > 1 ? 's' : ''} terrain non traitée{anomaliesCount > 1 ? 's' : ''}
+            </p>
+            <p className="text-sm text-amber-600 mt-0.5">
+              Consultez le détail sur MTS-1 →{' '}
+              <a href="https://console.mts-1.com/customerOrdersWarning" target="_blank" rel="noopener noreferrer"
+                className="underline hover:text-amber-800">
+                Voir les anomalies
+              </a>
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
