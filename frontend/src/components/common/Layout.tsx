@@ -21,7 +21,6 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Sidebar */}
       <aside className="w-60 bg-blue-900 text-white flex flex-col flex-shrink-0">
         <div className="px-6 py-5 border-b border-blue-800">
           <h1 className="text-xl font-bold">FleetView</h1>
@@ -46,7 +45,6 @@ export default function Layout({ children }: { children: ReactNode }) {
           </button>
         </div>
       </aside>
-      {/* Main */}
       <main className="flex-1 overflow-auto bg-gray-50">
         {children}
       </main>

@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import Layout from './components/common/Layout';
 import LoginPage from './pages/LoginPage';
@@ -10,30 +10,25 @@ import AlertsPage from './pages/AlertsPage';
 import TourneesPage from './pages/TourneesPage';
 import EntretienPage from './pages/EntretienPage';
 
-function Protected({ children }: { children: React.ReactNode }) {
+function ProtectedLayout() {
   const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <Layout><Outlet /></Layout>;
 }
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/" element={
-        <Protected>
-          <Layout>
-            <Routes>
-              <Route index element={<DashboardPage />} />
-              <Route path="map" element={<MapPage />} />
-              <Route path="fuel" element={<FuelPage />} />
-              <Route path="fleet" element={<FleetPage />} />
-              <Route path="alerts" element={<AlertsPage />} />
-              <Route path="tournees" element={<TourneesPage />} />
-              <Route path="entretien" element={<EntretienPage />} />
-            </Routes>
-          </Layout>
-        </Protected>
-      } />
+      <Route element={<ProtectedLayout />}>
+        <Route index element={<DashboardPage />} />
+        <Route path="map" element={<MapPage />} />
+        <Route path="fuel" element={<FuelPage />} />
+        <Route path="fleet" element={<FleetPage />} />
+        <Route path="alerts" element={<AlertsPage />} />
+        <Route path="tournees" element={<TourneesPage />} />
+        <Route path="entretien" element={<EntretienPage />} />
+      </Route>
     </Routes>
   );
 }
