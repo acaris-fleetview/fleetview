@@ -9,7 +9,9 @@ export class Driver {
   @Column({ nullable: true }) email: string;
   @Column({ nullable: true }) phone: string;
   @Column({ name: 'license_number', nullable: true }) licenseNumber: string;
+  @Column({ name: 'license_expiry', type: 'date', nullable: true }) licenseExpiry: string;
   @Column({ name: 'driving_score', type: 'numeric', default: 100 }) drivingScore: number;
   @Column({ default: 'active' }) status: string;
+  @Column({ nullable: true }) notes: string;
   @CreateDateColumn({ name: 'created_at' }) createdAt: Date;
 }
