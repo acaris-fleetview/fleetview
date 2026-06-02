@@ -10,6 +10,7 @@ import DriversPage from './pages/DriversPage';
 import AlertsPage from './pages/AlertsPage';
 import TourneesPage from './pages/TourneesPage';
 import EntretienPage from './pages/EntretienPage';
+import ImportPage from './pages/ImportPage';
 
 function ProtectedLayout() {
   const { isAuthenticated } = useAuth();
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="alerts" element={<AlertsPage />} />
         <Route path="tournees" element={<TourneesPage />} />
         <Route path="entretien" element={<EntretienPage />} />
+        <Route path="import" element={<ImportPage />} />
       </Route>
     </Routes>
   );

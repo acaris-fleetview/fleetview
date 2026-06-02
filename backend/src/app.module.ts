@@ -8,6 +8,7 @@ import { FleetModule } from './modules/fleet/fleet.module';
 import { TelemetryModule } from './modules/telemetry/telemetry.module';
 import { FuelModule } from './modules/fuel/fuel.module';
 import { ConnectorsModule } from './modules/connectors/connectors.module';
+import { ImportModule } from './modules/import/import.module';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { ConnectorsModule } from './modules/connectors/connectors.module';
         username: config.get('DB_USER', 'fleetview'),
         password: config.get('DB_PASSWORD'),
         autoLoadEntities: true,
-        synchronize: true,
+        synchronize: false,
         logging: config.get('NODE_ENV') === 'development',
       }),
     }),
@@ -31,8 +32,4 @@ import { ConnectorsModule } from './modules/connectors/connectors.module';
     AuthModule,
     FleetModule,
     TelemetryModule,
-    FuelModule,
-    ConnectorsModule,
-  ],
-})
-export class AppModule {}
+    FuelM
