@@ -160,9 +160,12 @@ const SHEET_CONFIG: { keywords:string[]; label:string; icon:string; destination:
   { keywords:['infraction','amende'],              label:'Infractions',    icon:'⚠️', destination:'Onglet Alertes',      endpoint:'/import/infractions',     parser:parseInfractions },
   { keywords:['amortissement'],                    label:'Amortissement',  icon:'📉', destination:'Onglet Flotte',       endpoint:'/import/depreciation',    parser:parseAmortissement },
 ];
-function matchSheet(name:string) {
-  const n=name.toLowerCase();
-  return SHEET_CONFIG.find(c=>c.keywords.some(k=>n.includes(k)));
+function matchSheet(name:string, fileName='') {
+  const n = name.toLowerCase();
+  const f = fileName.toLowerCase().replace(/\.[^.]+$/, ''); // sans extension
+  // Essayer le nom de la feuille d'abord, puis le nom du fichier
+  return SHEET_CONFIG.find(c => c.keywords.some(k => n.includes(k)))
+      || SHEET_CONFIG.find(c => c.keywords.some(k => f.includes(k)));
 }
 
 export default function ImportPage() {
@@ -180,7 +183,7 @@ export default function ImportPage() {
     reader.onload = (ev) => {
       const wb = XLSX.read(new Uint8Array(ev.target!.result as ArrayBuffer), { type:'array', cellDates:true });
       setSheets(wb.SheetNames.map(name => {
-        const config = matchSheet(name);
+        const config = matchSheet(name, file.name);
         return config
           ? { name, label:config.label, icon:config.icon, status:'pending', message:`→ ${config.destination}` }
           : { name, label:name, icon:'⚪', status:'skipped', message:'Non reconnu — ignoré' };
@@ -196,7 +199,7 @@ export default function ImportPage() {
     const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type:'array', cellDates:true });
     for (const sheet of sheets) {
       if (sheet.status==='skipped') continue;
-      const config = matchSheet(sheet.name); if (!config) continue;
+      const config = matchSheet(sheet.name, file.name); if (!config) continue;
       setSheets(prev=>prev.map(s=>s.name===sheet.name?{...s,status:'processing'}:s));
       try {
         const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheet.name], { header:1, defval:null });
