@@ -6,13 +6,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './modules/auth/auth.module';
 import { FleetModule } from './modules/fleet/fleet.module';
 import { TelemetryModule } from './modules/telemetry/telemetry.module';
-import { FuelModule,
-    ConnectorsModule,
-    ImportModule,
-  ],
-})
-export class AppModule {}
-odule } from './modules/fuel/fuel.module';
+import { FuelModule } from './modules/fuel/fuel.module';
 import { ConnectorsModule } from './modules/connectors/connectors.module';
 import { ImportModule } from './modules/import/import.module';
 
@@ -38,4 +32,9 @@ import { ImportModule } from './modules/import/import.module';
     AuthModule,
     FleetModule,
     TelemetryModule,
-    FuelM
+    FuelModule,
+    ConnectorsModule,
+    ImportModule,
+  ],
+})
+export class AppModule {}
