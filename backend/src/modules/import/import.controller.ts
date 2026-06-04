@@ -8,37 +8,37 @@ export class ImportController {
   constructor(private readonly svc: ImportService) {}
 
   @Post('fuel')
-  importFuel(@Body() body: { records: any[] }) {
+  importFuel(@Body() body: { records: any[] }): Promise<any> {
     return this.svc.importFuel(body.records);
   }
 
   @Post('total-mobility')
-  importTotalMobility(@Body() body: { records: any[] }) {
+  importTotalMobility(@Body() body: { records: any[] }): Promise<any> {
     return this.svc.importTotalMobility(body.records);
   }
 
   @Post('maintenance')
-  importMaintenance(@Body() body: { records: any[] }) {
+  importMaintenance(@Body() body: { records: any[] }): Promise<any> {
     return this.svc.importMaintenance(body.records);
   }
 
   @Post('insurance')
-  importInsurance(@Body() body: { records: any[] }) {
+  importInsurance(@Body() body: { records: any[] }): Promise<any> {
     return this.svc.importInsurance(body.records);
   }
 
   @Post('rental')
-  importRental(@Body() body: { records: any[] }) {
+  importRental(@Body() body: { records: any[] }): Promise<any> {
     return this.svc.importRental(body.records);
   }
 
   @Post('infractions')
-  importInfractions(@Body() body: { records: any[] }) {
+  importInfractions(@Body() body: { records: any[] }): Promise<any> {
     return this.svc.importInfractions(body.records);
   }
 
   @Post('depreciation')
-  importDepreciation(@Body() body: { records: any[] }) {
+  importDepreciation(@Body() body: { records: any[] }): Promise<any> {
     return this.svc.importDepreciation(body.records);
   }
 }
