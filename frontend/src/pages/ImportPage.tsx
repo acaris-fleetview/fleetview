@@ -12,8 +12,19 @@ interface SheetResult {
   message?: string;
 }
 
+function normalizeStr(s: string): string {
+  return s.toLowerCase()
+    .replace(/[''\u2018\u2019\u201a\u201b\u2032\u2035]/g, "'")
+    .replace(/[éèêë]/g, 'e')
+    .replace(/[àâä]/g, 'a')
+    .replace(/[ôö]/g, 'o')
+    .replace(/[ûüù]/g, 'u')
+    .replace(/[îï]/g, 'i')
+    .replace(/[ç]/g, 'c');
+}
+
 function findCol(headers: string[], keywords: string[]): number {
-  return headers.findIndex(h => h && keywords.some(k => h.toLowerCase().includes(k.toLowerCase())));
+  return headers.findIndex(h => h && keywords.some(k => normalizeStr(h).includes(normalizeStr(k))));
 }
 function parseDate(val: unknown): string | null {
   if (!val) return null;
@@ -38,9 +49,9 @@ function parseThankyou(rows: unknown[][]): object[] {
   const iPlaque=findCol(h,['immatriculation','plaque','vehicle']);
   const iDate=findCol(h,['livraison','facturation','date']);
   const iPrix=findCol(h,['prix unitaire','unit','prix/litre','litre']);
-  const iVol=findCol(h,['quantité','quantite','volume','qt']);
+  const iVol=findCol(h,['quantitÃ©','quantite','volume','qt']);
   const iTotal=findCol(h,['total ht','montant ht','total']);
-  const iProduit=findCol(h,['produit','service','désignation']);
+  const iProduit=findCol(h,['produit','service','dÃ©signation']);
   const out: object[] = [];
   for (const row of rows.slice(1)) {
     if (String(row[iProduit]??'').toLowerCase().includes('frais')) continue;
@@ -54,8 +65,8 @@ function parseThankyou(rows: unknown[][]): object[] {
 function parseTotalMobility(rows: unknown[][]): object[] {
   if (!rows.length) return [];
   const h=(rows[0] as string[]).map(x=>String(x??''));
-  const iDate=findCol(h,['date']),iDesc=findCol(h,['désignation','designation','produit']);
-  const iQte=findCol(h,['quantité','quantite','qté']),iPrix=findCol(h,['prix unitaire','prix unit']);
+  const iDate=findCol(h,['date']),iDesc=findCol(h,['dÃ©signation','designation','produit']);
+  const iQte=findCol(h,['quantitÃ©','quantite','qtÃ©']),iPrix=findCol(h,['prix unitaire','prix unit']);
   const iTotal=findCol(h,['montant ht','total ht','montant']);
   const out: object[] = [];
   for (const row of rows.slice(1)) {
@@ -71,7 +82,7 @@ function parseEntretiens(rows: unknown[][]): object[] {
   if (!rows.length) return [];
   const h=(rows[0] as string[]).map(x=>String(x??''));
   const iDate=findCol(h,['date']),iImmat=findCol(h,['immatriculation','plaque','immat']);
-  const iType=findCol(h,['entretien','type','désignation','description']),iPrix=findCol(h,['prix','montant','coût','cout','total']);
+  const iType=findCol(h,['entretien','type','dÃ©signation','description']),iPrix=findCol(h,['prix','montant','coÃ»t','cout','total']);
   const out: object[] = [];
   for (const row of rows.slice(1)) {
     const date=parseDate(row[iDate]),immat=String(row[iImmat]??'').trim(),type=String(row[iType]??'').trim();
@@ -87,11 +98,11 @@ function parseAssurances(rows: unknown[][]): object[] {
     if ((rows[i] as unknown[]).filter(c=>c!==null&&String(c).trim()!=='').length>=2){hi=i;break;}
   }
   const h=(rows[hi] as string[]).map(x=>String(x??''));
-  const iImmat=findCol(h,['immatriculation','plaque','véhicule','vehicule']);
-  const iMarque=findCol(h,['marque','modèle','modele']);
+  const iImmat=findCol(h,['immatriculation','plaque','vÃ©hicule','vehicule']);
+  const iMarque=findCol(h,['marque','modÃ¨le','modele']);
   const iPrime=findCol(h,['prime','cotisation','montant','ttc','annuel','total']);
-  const iDebut=findCol(h,['début','debut','effet','date début']);
-  const iFin=findCol(h,['fin','échéance','echeance']);
+  const iDebut=findCol(h,['dÃ©but','debut','effet','date dÃ©but']);
+  const iFin=findCol(h,['fin','Ã©chÃ©ance','echeance']);
   const out: object[] = [];
   for (const row of rows.slice(hi+1)) {
     const immat=iImmat>=0?String(row[iImmat]??'').trim():'';
@@ -106,8 +117,8 @@ function parseLocation(rows: unknown[][]): object[] {
   if (!rows.length) return [];
   const h=(rows[0] as string[]).map(x=>String(x??''));
   const iDate=findCol(h,['date']),iLoueur=findCol(h,['loueur','fournisseur']);
-  const iModele=findCol(h,['modele','modèle','véhicule']),iImmat=findCol(h,['immatriculation','plaque']);
-  const iJrs=findCol(h,['jours','jrs','durée']),iLoyer=findCol(h,['loyer','location','montant']),iAssur=findCol(h,['assurance']);
+  const iModele=findCol(h,['modele','modÃ¨le','vÃ©hicule']),iImmat=findCol(h,['immatriculation','plaque']);
+  const iJrs=findCol(h,['jours','jrs','durÃ©e']),iLoyer=findCol(h,['loyer','location','montant']),iAssur=findCol(h,['assurance']);
   const out: object[] = [];
   for (const row of rows.slice(1)) {
     const date=parseDate(row[iDate]),loyer=parseNum(row[iLoyer]);
@@ -121,9 +132,9 @@ function parseLocation(rows: unknown[][]): object[] {
 function parseInfractions(rows: unknown[][]): object[] {
   if (!rows.length) return [];
   const h=(rows[0] as string[]).map(x=>String(x??''));
-  const iDate=findCol(h,['date']),iType=findCol(h,['infraction','type','désignation']);
+  const iDate=findCol(h,['date']),iType=findCol(h,['infraction','type','dÃ©signation']);
   const iDriver=findCol(h,['chauffeur','conducteur']),iMontant=findCol(h,['montant','amende','total']);
-  const iImpute=findCol(h,['imputation','impute','société']);
+  const iImpute=findCol(h,['imputation','impute','sociÃ©tÃ©']);
   const out: object[] = [];
   for (const row of rows.slice(1)) {
     const date=parseDate(row[iDate]),montant=parseNum(row[iMontant]);
@@ -136,7 +147,7 @@ function parseInfractions(rows: unknown[][]): object[] {
 function parseAmortissement(rows: unknown[][]): object[] {
   if (!rows.length) return [];
   const h=(rows[0] as string[]).map(x=>String(x??''));
-  const iVeh=findCol(h,['vehicule','véhicule','camion']),iAchat=findCol(h,['prix achat','valeur','coût','cout']);
+  const iVeh=findCol(h,['vehicule','vÃ©hicule','camion']),iAchat=findCol(h,['prix achat','valeur','coÃ»t','cout']);
   const iDate=findCol(h,['date achat','date']),iValNet=findCol(h,['valeur nette','vnet','net']);
   const seen=new Set<string>();const out: object[]=[];
   for (const row of rows.slice(1)) {
@@ -152,13 +163,13 @@ function parseAmortissement(rows: unknown[][]): object[] {
 }
 
 const SHEET_CONFIG: { keywords:string[]; label:string; icon:string; destination:string; endpoint:string; parser:(r:unknown[][])=>object[] }[] = [
-  { keywords:['thank you','tankyou','carburant'],  label:'Carburant',      icon:'⛽', destination:'Onglet Carburant',    endpoint:'/import/fuel',           parser:parseThankyou },
-  { keywords:['total mobility','total'],           label:'Total Mobility', icon:'🛢️', destination:'Onglet Carburant',    endpoint:'/import/total-mobility',  parser:parseTotalMobility },
-  { keywords:['entretien','maintenance','divers'],  label:'Entretiens',     icon:'🔧', destination:'Onglet Entretien',    endpoint:'/import/maintenance',     parser:parseEntretiens },
-  { keywords:['assurance'],                        label:'Assurances',     icon:'🛡️', destination:'Onglet Assurances',   endpoint:'/import/insurance',       parser:parseAssurances },
-  { keywords:['location vl','location'],           label:'Location VL',    icon:'🚐', destination:'Onglet Flotte',       endpoint:'/import/rental',          parser:parseLocation },
-  { keywords:['infraction','amende'],              label:'Infractions',    icon:'⚠️', destination:'Onglet Alertes',      endpoint:'/import/infractions',     parser:parseInfractions },
-  { keywords:['amortissement'],                    label:'Amortissement',  icon:'📉', destination:'Onglet Flotte',       endpoint:'/import/depreciation',    parser:parseAmortissement },
+  { keywords:['thank you','tankyou','carburant'],  label:'Carburant',      icon:'â½', destination:'Onglet Carburant',    endpoint:'/import/fuel',           parser:parseThankyou },
+  { keywords:['total mobility','total'],           label:'Total Mobility', icon:'ð¢ï¸', destination:'Onglet Carburant',    endpoint:'/import/total-mobility',  parser:parseTotalMobility },
+  { keywords:['entretien','maintenance','divers'],  label:'Entretiens',     icon:'ð§', destination:'Onglet Entretien',    endpoint:'/import/maintenance',     parser:parseEntretiens },
+  { keywords:['assurance'],                        label:'Assurances',     icon:'ð¡ï¸', destination:'Onglet Assurances',   endpoint:'/import/insurance',       parser:parseAssurances },
+  { keywords:['location vl','location'],           label:'Location VL',    icon:'ð', destination:'Onglet Flotte',       endpoint:'/import/rental',          parser:parseLocation },
+  { keywords:['infraction','amende'],              label:'Infractions',    icon:'â ï¸', destination:'Onglet Alertes',      endpoint:'/import/infractions',     parser:parseInfractions },
+  { keywords:['amortissement'],                    label:'Amortissement',  icon:'ð', destination:'Onglet Flotte',       endpoint:'/import/depreciation',    parser:parseAmortissement },
 ];
 function matchSheet(name:string, fileName='') {
   const n = name.toLowerCase();
@@ -185,8 +196,8 @@ export default function ImportPage() {
       setSheets(wb.SheetNames.map(name => {
         const config = matchSheet(name, file.name);
         return config
-          ? { name, label:config.label, icon:config.icon, status:'pending', message:`→ ${config.destination}` }
-          : { name, label:name, icon:'⚪', status:'skipped', message:'Non reconnu — ignoré' };
+          ? { name, label:config.label, icon:config.icon, status:'pending', message:`â ${config.destination}` }
+          : { name, label:name, icon:'âª', status:'skipped', message:'Non reconnu â ignorÃ©' };
       }));
     };
     reader.readAsArrayBuffer(file);
@@ -226,29 +237,29 @@ export default function ImportPage() {
     <div className="p-6 max-w-3xl mx-auto">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Import mensuel</h1>
-        <p className="text-gray-500 mt-1">Uploadez votre fichier Excel — les données sont automatiquement redirigées vers les bons onglets.</p>
-        {lastImport && <p className="text-xs text-green-600 mt-1">✓ Dernier import : {lastImport}</p>}
+        <p className="text-gray-500 mt-1">Uploadez votre fichier Excel â les donnÃ©es sont automatiquement redirigÃ©es vers les bons onglets.</p>
+        {lastImport && <p className="text-xs text-green-600 mt-1">â Dernier import : {lastImport}</p>}
       </div>
 
-      {/* Zone de dépôt */}
+      {/* Zone de dÃ©pÃ´t */}
       <div onClick={() => fileRef.current?.click()}
         className="border-2 border-dashed border-blue-300 rounded-2xl p-12 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all mb-6">
-        <div className="text-5xl mb-4">📂</div>
+        <div className="text-5xl mb-4">ð</div>
         {fileName
           ? <p className="font-semibold text-blue-700 text-lg">{fileName}</p>
           : <>
-              <p className="text-gray-600 font-medium">Cliquez ou déposez votre fichier ici</p>
-              <p className="text-gray-400 text-sm mt-2">Charges_VL_vX.xlsx · Fichier assureur · Tout format Excel</p>
+              <p className="text-gray-600 font-medium">Cliquez ou dÃ©posez votre fichier ici</p>
+              <p className="text-gray-400 text-sm mt-2">Charges_VL_vX.xlsx Â· Fichier assureur Â· Tout format Excel</p>
             </>}
         <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFile} />
       </div>
 
-      {/* Feuilles détectées */}
+      {/* Feuilles dÃ©tectÃ©es */}
       {sheets.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
           <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
             <p className="text-sm font-semibold text-gray-700">
-              {pendingCount > 0 ? `${pendingCount} feuille${pendingCount>1?'s':''} prête${pendingCount>1?'s':''} à importer` : 'Feuilles détectées'}
+              {pendingCount > 0 ? `${pendingCount} feuille${pendingCount>1?'s':''} prÃªte${pendingCount>1?'s':''} Ã  importer` : 'Feuilles dÃ©tectÃ©es'}
             </p>
           </div>
           <div className="divide-y divide-gray-50">
@@ -256,7 +267,7 @@ export default function ImportPage() {
               <div key={s.name} className="flex items-center justify-between px-5 py-3">
                 <div className="flex items-center gap-3">
                   <span className="text-xl w-8 text-center">
-                    {s.status==='processing' ? '⚙️' : s.status==='done' ? '✅' : s.status==='error' ? '❌' : s.icon}
+                    {s.status==='processing' ? 'âï¸' : s.status==='done' ? 'â' : s.status==='error' ? 'â' : s.icon}
                   </span>
                   <div>
                     <p className="font-medium text-gray-800 text-sm">{s.label}</p>
@@ -265,8 +276,8 @@ export default function ImportPage() {
                 </div>
                 <div className="text-right text-sm">
                   {s.status==='pending'    && <span className="text-gray-400">En attente</span>}
-                  {s.status==='processing' && <span className="text-blue-500 animate-pulse">Import…</span>}
-                  {s.status==='skipped'    && <span className="text-gray-300">—</span>}
+                  {s.status==='processing' && <span className="text-blue-500 animate-pulse">Importâ¦</span>}
+                  {s.status==='skipped'    && <span className="text-gray-300">â</span>}
                   {s.status==='done' && s.result && (
                     <span className="text-green-600 font-semibold">{s.result.inserted} lignes</span>
                   )}
@@ -282,15 +293,15 @@ export default function ImportPage() {
       {pendingCount > 0 && (
         <button onClick={handleImport} disabled={running}
           className="w-full py-4 bg-blue-600 text-white rounded-2xl font-semibold text-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm">
-          {running ? '⚙️ Import en cours…' : `🚀 Importer maintenant`}
+          {running ? 'âï¸ Import en coursâ¦' : `ð Importer maintenant`}
         </button>
       )}
 
-      {/* Résumé final */}
+      {/* RÃ©sumÃ© final */}
       {done && totalInserted > 0 && (
         <div className="mt-4 bg-green-50 border border-green-200 rounded-2xl p-5 text-center">
-          <p className="text-green-700 font-bold text-xl">✅ {totalInserted} enregistrements importés</p>
-          <p className="text-green-500 text-sm mt-1">Les données sont disponibles dans tous les onglets</p>
+          <p className="text-green-700 font-bold text-xl">â {totalInserted} enregistrements importÃ©s</p>
+          <p className="text-green-500 text-sm mt-1">Les donnÃ©es sont disponibles dans tous les onglets</p>
         </div>
       )}
 
