@@ -16,7 +16,7 @@ export class FuelService {
     if (vehicleId) qb.andWhere('ft.vehicle_id = :vehicleId', { vehicleId });
     if (from) qb.andWhere('ft.transacted_at >= :from', { from });
     if (to) qb.andWhere('ft.transacted_at <= :to', { to });
-    return qb.orderBy('t.transactedAt', 'DESC').getMany();
+    return qb.getMany();
   }
 
   findFraudAlerts(status?: string) {
