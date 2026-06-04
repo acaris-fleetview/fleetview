@@ -8,7 +8,7 @@ const fmtDate = (s: string) => new Date(s).toLocaleDateString('fr-FR', { day: '2
 export default function AlertsPage() {
   const { data: apiFraud, isError: errAlerts } = useQuery<FraudAlert[]>({
     queryKey: ['fraud-alerts-all'],
-    queryFn: fuelApi.fraudAlerts,
+    queryFn: () => fuelApi.fraudAlerts(),
     retry: false,
   });
 
@@ -44,7 +44,7 @@ export default function AlertsPage() {
       </div>
 
       <div className="bg-white rounded-xl shadow p-4">
-        <h3 className="font-semibold text-gray-800 mb-3">Toutes les alertes fraude ({fraudAlerts.length})</h3>
+        <h3 className="font-semibold text-gray-800 mb-3">{'Toutes les alertes fraude (' + fraudAlerts.length + ')'}</h3>
         {fraudAlerts.length === 0 ? (
           <p className="text-gray-400 text-sm italic">Aucune alerte fraude détectée.</p>
         ) : (
@@ -65,12 +65,12 @@ export default function AlertsPage() {
                   <td className="pr-4 text-xs">{a.alertType}</td>
                   <td className="pr-4 text-gray-600 text-xs max-w-xs truncate">{a.description}</td>
                   <td className="pr-4">
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${a.riskScore >= 80 ? 'bg-red-100 text-red-700' : a.riskScore >= 50 ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                    <span className={'px-2 py-0.5 rounded-full text-xs ' + (a.riskScore >= 80 ? 'bg-red-100 text-red-700' : a.riskScore >= 50 ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700')}>
                       {a.riskScore}
                     </span>
                   </td>
                   <td>
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${a.status === 'open' ? 'bg-red-100 text-red-700' : a.status === 'acknowledged' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                    <span className={'px-2 py-0.5 rounded-full text-xs ' + (a.status === 'open' ? 'bg-red-100 text-red-700' : a.status === 'acknowledged' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700')}>
                       {a.status === 'open' ? 'Ouverte' : a.status === 'acknowledged' ? 'Reconnue' : 'Faux positif'}
                     </span>
                   </td>
