@@ -16,12 +16,21 @@ const monthlyData = [
   { month: 'Jui', km: 25600, fuel: 2530, cost: 4460 },
 ];
 
+// Facteur d'émission gazole : 2.68 kg CO2 / litre (source ADEME)
+const CO2_PER_LITER = 2.68;
+
 export default function DashboardPage() {
   const { data: fleetStats } = useQuery({ queryKey: ['fleet-stats'], queryFn: fleetApi.stats });
   const { data: telemKpi }   = useQuery({ queryKey: ['telem-kpi'], queryFn: () => telemetryApi.kpi(30) });
   const { data: fuelKpi }    = useQuery({ queryKey: ['fuel-kpi'],  queryFn: () => fuelApi.kpi(30) });
 
   const fmt = (n?: number, dec = 0) => n != null ? n.toLocaleString('fr-FR', { maximumFractionDigits: dec }) : '—';
+
+  // Consommation : données télémétrie si dispo, sinon données carburant réelles
+  const consoL = telemKpi?.totalFuelL || fuelKpi?.totalVolumeL;
+  // CO2 : télémétrie si dispo, sinon calcul depuis litres achetés × 2.68 kg/L
+  const co2Kg = telemKpi?.totalCo2Kg || (fuelKpi?.totalVolumeL ? Math.round(fuelKpi.totalVolumeL * CO2_PER_LITER) : undefined);
+  const co2Source = telemKpi?.totalCo2Kg ? '' : ' (estimé)';
 
   return (
     <div className="p-6 space-y-6">
@@ -33,22 +42,22 @@ export default function DashboardPage() {
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard title="Véhicules actifs" value={fleetStats?.active ?? '—'}
-          subtitle={`${fleetStats?.total ?? '—'} au total`} icon="🚗" color="blue" />
-        <KpiCard title="Kilomètres parcourus" value={`${fmt(telemKpi?.totalKm)} km`}
-          subtitle={`${fmt(telemKpi?.tripCount)} trajets`} icon="📍" color="green" />
-        <KpiCard title="Consommation carburant" value={`${fmt(telemKpi?.totalFuelL)} L`}
-          subtitle={`${fmt(fuelKpi?.totalCostEur)} €`} icon="⛽" color="amber" />
+          subtitle={String(fleetStats?.total ?? '—') + ' au total'} icon="🚗" color="blue" />
+        <KpiCard title="Kilomètres parcourus" value={fmt(telemKpi?.totalKm) + ' km'}
+          subtitle={fmt(telemKpi?.tripCount) + ' trajets'} icon="📍" color="green" />
+        <KpiCard title="Consommation carburant" value={fmt(consoL, 1) + ' L'}
+          subtitle={fmt(fuelKpi?.totalCostEur) + ' €'} icon="⛽" color="amber" />
         <KpiCard title="Alertes fraude ouvertes" value={fuelKpi?.openFraudAlerts ?? '—'}
           icon="⚠️" color={fuelKpi?.openFraudAlerts > 0 ? 'red' : 'green'} />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard title="CO₂ émis" value={`${fmt(telemKpi?.totalCo2Kg)} kg`}
-          icon="🌿" color="purple" />
-        <KpiCard title="Score conduite moyen" value={`${fmt(telemKpi?.avgDrivingScore, 1)} / 100`}
+        <KpiCard title={'CO₂ émis' + co2Source} value={fmt(co2Kg) + ' kg'}
+          subtitle="2,68 kg CO₂/L gazole (ADEME)" icon="🌿" color="purple" />
+        <KpiCard title="Score conduite moyen" value={fmt(telemKpi?.avgDrivingScore, 1) + ' / 100'}
           icon="⭐" color="blue" />
-        <KpiCard title="Coût carburant" value={`${fmt(fuelKpi?.totalCostEur)} €`}
-          subtitle={`Prix moy. ${fmt(fuelKpi?.avgPriceEur, 3)} €/L`} icon="💶" color="amber" />
+        <KpiCard title="Coût carburant" value={fmt(fuelKpi?.totalCostEur) + ' €'}
+          subtitle={'Prix moy. ' + fmt(fuelKpi?.avgPriceEur, 3) + ' €/L'} icon="💶" color="amber" />
         <KpiCard title="Transactions carburant" value={fuelKpi?.transactionCount ?? '—'}
           icon="🧾" color="green" />
       </div>
@@ -62,7 +71,7 @@ export default function DashboardPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v) => [`${Number(v).toLocaleString('fr-FR')} km`, 'Km']} />
+              <Tooltip formatter={(v) => [Number(v).toLocaleString('fr-FR') + ' km', 'Km']} />
               <Bar dataKey="km" fill="#2563eb" radius={[4,4,0,0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -74,7 +83,7 @@ export default function DashboardPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v) => [`${Number(v).toLocaleString('fr-FR')} €`, 'Coût']} />
+              <Tooltip formatter={(v) => [Number(v).toLocaleString('fr-FR') + ' €', 'Coût']} />
               <Legend />
               <Line type="monotone" dataKey="cost" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} name="Coût (€)" />
               <Line type="monotone" dataKey="fuel" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} name="Volume (L)" />
