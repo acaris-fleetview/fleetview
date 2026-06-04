@@ -9,4 +9,6 @@ import { ConnectorsController } from './connectors.controller';
   imports: [HttpModule],
   controllers: [ConnectorsController],
   providers: [WebfleetService, TankyouService, Mts1Service],
-  exports: [WebfleetSer
+  exports: [WebfleetService, TankyouService, Mts1Service],
+})
+export class ConnectorsModule {}
