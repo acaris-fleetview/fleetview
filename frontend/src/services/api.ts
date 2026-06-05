@@ -9,11 +9,20 @@ api.interceptors.request.use(cfg => {
   return cfg;
 });
 
-// On ne redirige plus vers /login sur 401 des endpoints de données
-// Les pages gèrent l'erreur avec retry:false + isError (bannière jaune)
+// Redirection automatique vers /login si token expiré (401)
 api.interceptors.response.use(
   r => r,
-  err => Promise.reject(err),
+  err => {
+    if (err?.response?.status === 401) {
+      // Ne pas rediriger si on est déjà sur /login ou si c'est un appel auth/login
+      const isLoginCall = err?.config?.url?.includes('/auth/login');
+      if (!isLoginCall && !window.location.pathname.includes('/login')) {
+        localStorage.removeItem('access_token');
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(err);
+  },
 );
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
