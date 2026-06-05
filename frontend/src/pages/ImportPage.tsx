@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
-import api from '../services/api';
+import api, { fuelApi } from '../services/api';
 
 interface ImportResult { source: string; inserted: number; skipped: number; errors: string[]; }
 interface SheetResult {
@@ -230,6 +231,8 @@ export default function ImportPage() {
     setLastImport(new Date().toLocaleString('fr-FR'));
   };
 
+  const { data: lastImports } = useQuery({ queryKey: ['last-imports'], queryFn: () => fuelApi.lastImports(), refetchOnWindowFocus: true });
+
   const pendingCount = sheets.filter(s=>s.status==='pending').length;
   const totalInserted = sheets.reduce((acc,s)=>acc+(s.result?.inserted??0),0);
 
@@ -241,7 +244,30 @@ export default function ImportPage() {
         {lastImport && <p className="text-xs text-green-600 mt-1">â Dernier import : {lastImport}</p>}
       </div>
 
-      {/* Zone de dÃ©pÃ´t */}
+      {/* Derniers imports par fournisseur */}
+      {lastImports && lastImports.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6">
+          <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 rounded-t-xl">
+            <h3 className="text-sm font-semibold text-gray-700">Derniers imports par fournisseur</h3>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {lastImports.map((imp: { provider: string; lastDate: string; count: number }) => (
+              <div key={imp.provider} className="flex items-center justify-between px-5 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">{imp.provider?.toLowerCase().includes('total') ? '🔴' : imp.provider?.toLowerCase().includes('tank') ? '🟡' : '⛽'}</span>
+                  <span className="font-medium text-gray-800 text-sm">{imp.provider}</span>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-gray-900">{new Date(imp.lastDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                  <p className="text-xs text-gray-400">{imp.count.toLocaleString('fr-FR')} transactions au total</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+            {/* Zone de dÃ©pÃ´t */}
       <div onClick={() => fileRef.current?.click()}
         className="border-2 border-dashed border-blue-300 rounded-2xl p-12 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all mb-6">
         <div className="text-5xl mb-4">ð</div>

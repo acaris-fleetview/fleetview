@@ -44,6 +44,7 @@ export const fuelApi = {
   transactions: (from?: string, to?: string, vehicleId?: string) =>
     api.get('/fuel/transactions', { params: { from, to, vehicleId } }).then(r => r.data),
   kpi: (days = 30) => api.get('/fuel/kpi', { params: { days } }).then(r => r.data),
+  lastImports: () => api.get('/fuel/last-imports').then(r => r.data),
   fraudAlerts: (status?: string) =>
     api.get('/fuel/fraud-alerts', { params: { status } }).then(r => r.data),
 };
