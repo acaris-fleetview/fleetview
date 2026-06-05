@@ -25,9 +25,4 @@ export class FuelController {
     return this.fuel.fuelKpi(days ? parseInt(days) : 30);
   }
 
-  @Get('last-imports')
-  getLastImports() {
-    return this.fuel.lastImportByProvider();
-  }
-
-}
+ 
