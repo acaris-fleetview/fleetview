@@ -85,7 +85,7 @@ function parseThankyou(rows: unknown[][]): object[] {
 }
 
 
-// Total Energies â carburant (export "Toutes-les-transactions")
+// Total Energies - carburant (export "Toutes-les-transactions")
 function parseTotalCarburant(rows: unknown[][]): object[] {
   if (!rows.length) return [];
   const headers = (rows[0] as string[]).map(h => String(h ?? '').trim());
@@ -446,7 +446,7 @@ export default function ImportPage() {
                   <span className="text-lg">
                     {s.status === 'pending'    ? '&#9203;' :
                      s.status === 'processing' ? '&#9881;' :
-                     s.status === 'done'       ? '&#9989;' :
+                     s.status === 'done'       ? '✅' :
                      s.status === 'error'      ? '&#10060;' : '&#9898;'}
                   </span>
                   <div>
