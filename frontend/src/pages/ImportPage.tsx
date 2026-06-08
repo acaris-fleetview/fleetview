@@ -23,13 +23,9 @@ interface SheetResult {
 
 function normalizeStr(s: string): string {
   return s.toLowerCase()
-    .replace(/['Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ²Ã¢ÂÂµ]/g, "'")
-    .replace(/[ÃÂ©ÃÂ¨ÃÂªÃÂ«]/g, 'e')
-    .replace(/[ÃÂ ÃÂ¢ÃÂ¤]/g, 'a')
-    .replace(/[ÃÂ´ÃÂ¶]/g, 'o')
-    .replace(/[ÃÂ»ÃÂ¼ÃÂ¹]/g, 'u')
-    .replace(/[ÃÂ®ÃÂ¯]/g, 'i')
-    .replace(/[ÃÂ§]/g, 'c');
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
 }
 
 function findCol(headers: string[], keywords: string[]): number {
