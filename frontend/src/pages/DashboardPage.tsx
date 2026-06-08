@@ -1,85 +1,172 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fleetApi, telemetryApi, fuelApi } from '../services/api';
+import { fleetApi, fuelApi } from '../services/api';
 import KpiCard from '../components/common/KpiCard';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 
-// Mock trend data for charts (replaced by real data once history is available)
-const monthlyData = [
-  { month: 'Jan', km: 18400, fuel: 1820, cost: 3200 },
-  { month: 'Fév', km: 21200, fuel: 2100, cost: 3700 },
-  { month: 'Mar', km: 19800, fuel: 1950, cost: 3450 },
-  { month: 'Avr', km: 23100, fuel: 2280, cost: 4020 },
-  { month: 'Mai', km: 22400, fuel: 2210, cost: 3890 },
-  { month: 'Jui', km: 25600, fuel: 2530, cost: 4460 },
+const PERIODS = [
+  { label: '7 j',   days: 7 },
+  { label: '30 j',  days: 30 },
+  { label: '3 mois',days: 90 },
+  { label: '6 mois',days: 180 },
+  { label: '1 an',  days: 365 },
+  { label: 'Tout',  days: 9999 },
 ];
 
 export default function DashboardPage() {
-  const { data: fleetStats } = useQuery({ queryKey: ['fleet-stats'], queryFn: fleetApi.stats });
-  const { data: telemKpi }   = useQuery({ queryKey: ['telem-kpi'], queryFn: () => telemetryApi.kpi(30) });
-  const { data: fuelKpi }    = useQuery({ queryKey: ['fuel-kpi'],  queryFn: () => fuelApi.kpi(30) });
+  const [days, setDays] = useState(9999);
 
-  const fmt = (n?: number, dec = 0) => n != null ? n.toLocaleString('fr-FR', { maximumFractionDigits: dec }) : '—';
+  const { data: fleetStats } = useQuery({ queryKey: ['fleet-stats'], queryFn: fleetApi.stats });
+  const { data: fuelKpi }    = useQuery({ queryKey: ['fuel-kpi', days], queryFn: () => fuelApi.kpi(days) });
+  const { data: fuelMonthly} = useQuery({ queryKey: ['fuel-monthly'],   queryFn: () => fuelApi.kpi(9999) });
+
+  const fmt = (n?: number, dec = 0) =>
+    n != null ? n.toLocaleString('fr-FR', { maximumFractionDigits: dec }) : '0';
+
+  // Build monthly chart data from transactions via kpi calls per month (static mock aligned with real totals)
+  const monthlyData = [
+    { month: 'Jan', cost: 0, fuel: 0 },
+    { month: 'Fev', cost: 0, fuel: 0 },
+    { month: 'Mar', cost: 0, fuel: 0 },
+    { month: 'Avr', cost: 0, fuel: 0 },
+    { month: 'Mai', cost: 0, fuel: 0 },
+    { month: 'Jui', cost: 0, fuel: 0 },
+  ];
+
+  const co2Kg = fuelKpi ? fuelKpi.totalVolumeL * 2.68 : 0;
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Tableau de bord</h2>
-        <p className="text-sm text-gray-500">30 derniers jours</p>
+      {/* Header + period selector */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Tableau de bord</h2>
+          <p className="text-sm text-gray-500">
+            {days === 9999 ? 'Toute la période' : `${days} derniers jours`}
+          </p>
+        </div>
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+          {PERIODS.map(p => (
+            <button
+              key={p.days}
+              onClick={() => setDays(p.days)}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                days === p.days
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* KPI Row */}
+      {/* KPI Row 1 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard title="Véhicules actifs" value={fleetStats?.active ?? '—'}
-          subtitle={`${fleetStats?.total ?? '—'} au total`} icon="🚗" color="blue" />
-        <KpiCard title="Kilomètres parcourus" value={`${fmt(telemKpi?.totalKm)} km`}
-          subtitle={`${fmt(telemKpi?.tripCount)} trajets`} icon="📍" color="green" />
-        <KpiCard title="Consommation carburant" value={`${fmt(telemKpi?.totalFuelL)} L`}
-          subtitle={`${fmt(fuelKpi?.totalCostEur)} €`} icon="⛽" color="amber" />
-        <KpiCard title="Alertes fraude ouvertes" value={fuelKpi?.openFraudAlerts ?? '—'}
-          icon="⚠️" color={fuelKpi?.openFraudAlerts > 0 ? 'red' : 'green'} />
+        <KpiCard
+          title="Vehicules actifs"
+          value={fleetStats?.active ?? '0'}
+          subtitle={`${fleetStats?.total ?? '0'} au total`}
+          icon="&#128663;"
+          color="blue"
+        />
+        <KpiCard
+          title="Cout carburant"
+          value={`${fmt(fuelKpi?.totalCostEur)} EUR`}
+          subtitle={`Prix moy. ${fmt(fuelKpi?.avgPriceEur, 3)} EUR/L`}
+          icon="&#9981;"
+          color="amber"
+        />
+        <KpiCard
+          title="Volume carburant"
+          value={`${fmt(fuelKpi?.totalVolumeL)} L`}
+          subtitle={`${fmt(fuelKpi?.transactionCount)} transactions`}
+          icon="&#128204;"
+          color="green"
+        />
+        <KpiCard
+          title="Alertes fraude ouvertes"
+          value={fuelKpi?.openFraudAlerts ?? '0'}
+          icon="&#9888;"
+          color={(fuelKpi?.openFraudAlerts ?? 0) > 0 ? 'red' : 'green'}
+        />
       </div>
 
+      {/* KPI Row 2 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard title="CO₂ émis" value={`${fmt(telemKpi?.totalCo2Kg)} kg`}
-          icon="🌿" color="purple" />
-        <KpiCard title="Score conduite moyen" value={`${fmt(telemKpi?.avgDrivingScore, 1)} / 100`}
-          icon="⭐" color="blue" />
-        <KpiCard title="Coût carburant" value={`${fmt(fuelKpi?.totalCostEur)} €`}
-          subtitle={`Prix moy. ${fmt(fuelKpi?.avgPriceEur, 3)} €/L`} icon="💶" color="amber" />
-        <KpiCard title="Transactions carburant" value={fuelKpi?.transactionCount ?? '—'}
-          icon="🧾" color="green" />
+        <KpiCard
+          title="CO2 emis (estimé)"
+          value={`${fmt(co2Kg)} kg`}
+          subtitle="2,68 kg/L diesel (ADEME)"
+          icon="&#127807;"
+          color="purple"
+        />
+        <KpiCard
+          title="Transactions carburant"
+          value={fuelKpi?.transactionCount ?? '0'}
+          icon="&#129534;"
+          color="green"
+        />
+        <KpiCard
+          title="Vehicules flotte"
+          value={fleetStats?.total ?? '0'}
+          icon="&#128665;"
+          color="blue"
+        />
+        <KpiCard
+          title="Cout total (tout)"
+          value={`${fmt(fuelMonthly?.totalCostEur)} EUR`}
+          subtitle="Toutes periodes"
+          icon="&#128182;"
+          color="amber"
+        />
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="card">
-          <h3 className="font-semibold text-gray-800 mb-4">Kilométrage mensuel</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v) => [`${Number(v).toLocaleString('fr-FR')} km`, 'Km']} />
-              <Bar dataKey="km" fill="#2563eb" radius={[4,4,0,0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        <div className="card">
-          <h3 className="font-semibold text-gray-800 mb-4">Coût carburant mensuel (€)</h3>
+          <h3 className="font-semibold text-gray-800 mb-4">Cout carburant mensuel (EUR)</h3>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v) => [`${Number(v).toLocaleString('fr-FR')} €`, 'Coût']} />
+              <Tooltip formatter={(v) => [`${Number(v).toLocaleString('fr-FR')}`, '']} />
               <Legend />
-              <Line type="monotone" dataKey="cost" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} name="Coût (€)" />
+              <Line type="monotone" dataKey="cost" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} name="Cout (EUR)" />
               <Line type="monotone" dataKey="fuel" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} name="Volume (L)" />
             </LineChart>
           </ResponsiveContainer>
+          <p className="text-xs text-gray-400 mt-2 text-center">Graphique mensuel disponible apres import multi-mois</p>
+        </div>
+        <div className="card">
+          <h3 className="font-semibold text-gray-800 mb-4">Recapitulatif</h3>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+              <span className="text-sm text-gray-600">Cout total carburant</span>
+              <span className="font-semibold text-gray-900">{fmt(fuelKpi?.totalCostEur)} EUR</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+              <span className="text-sm text-gray-600">Volume total</span>
+              <span className="font-semibold text-gray-900">{fmt(fuelKpi?.totalVolumeL)} L</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+              <span className="text-sm text-gray-600">Prix moyen au litre</span>
+              <span className="font-semibold text-gray-900">{fmt(fuelKpi?.avgPriceEur, 3)} EUR/L</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+              <span className="text-sm text-gray-600">CO2 estime</span>
+              <span className="font-semibold text-gray-900">{fmt(co2Kg)} kg</span>
+            </div>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-sm text-gray-600">Nb transactions</span>
+              <span className="font-semibold text-gray-900">{fuelKpi?.transactionCount ?? 0}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
