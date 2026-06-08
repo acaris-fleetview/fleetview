@@ -11,8 +11,16 @@ export class FuelController {
   constructor(private fuel: FuelService) {}
 
   @Get('transactions')
-  getTransactions(@Query('from') from?: string, @Query('to') to?: string, @Query('vehicleId') vehicleId?: string) {
-    return this.fuel.findTransactions(from ? new Date(from) : undefined, to ? new Date(to) : undefined, vehicleId);
+  getTransactions(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('vehicleId') vehicleId?: string,
+  ) {
+    return this.fuel.findTransactions(
+      from ? new Date(from) : undefined,
+      to ? new Date(to) : undefined,
+      vehicleId,
+    );
   }
 
   @Get('fraud-alerts')
@@ -25,4 +33,8 @@ export class FuelController {
     return this.fuel.fuelKpi(days ? parseInt(days) : 30);
   }
 
- 
+  @Get('last-imports')
+  getLastImports() {
+    return this.fuel.lastImportByProvider();
+  }
+}

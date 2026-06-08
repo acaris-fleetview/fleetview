@@ -20,7 +20,7 @@ export class FuelService {
   }
 
   findFraudAlerts(status?: string) {
-    const where: any = {};
+    const where: Record<string, string> = {};
     if (status) where.status = status;
     return this.fraudAlerts.find({ where, order: { createdAt: 'DESC' } });
   }
@@ -42,9 +42,24 @@ export class FuelService {
   }
 
   async fuelKpi(days: number = 30) {
-    const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    const result = await this.transactions.createQueryBuilder('ft')
+    const from = days >= 9999
+      ? new Date('2000-01-01')
+      : new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const result = await this.transactions
+      .createQueryBuilder('ft')
       .select('SUM(ft.total_eur)', 'totalCost')
       .addSelect('SUM(ft.volume_l)', 'totalVolume')
       .addSelect('COUNT(ft.id)', 'txCount')
-      .addSelect('AV
+      .addSelect('AVG(ft.unit_price_eur)', 'avgPrice')
+      .where('ft.transacted_at >= :from', { from })
+      .getRawOne();
+    const fraudCount = await this.fraudAlerts.count({ where: { status: 'open' } });
+    return {
+      totalCostEur:      parseFloat(result.totalCost)   || 0,
+      totalVolumeL:      parseFloat(result.totalVolume) || 0,
+      transactionCount:  parseInt(result.txCount)       || 0,
+      avgPriceEur:       parseFloat(result.avgPrice)    || 0,
+      openFraudAlerts:   fraudCount,
+    };
+  }
+}
