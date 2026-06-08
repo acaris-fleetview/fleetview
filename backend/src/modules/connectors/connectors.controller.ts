@@ -25,28 +25,24 @@ export class ConnectorsController {
   @Post('webfleet/sync')
   syncWebfleet() { return this.webfleet.syncPositions(); }
 
-  /** MTS-1 — Tournées du jour (ou d'une date donnée) */
   @ApiQuery({ name: 'date', required: false, example: '2026-05-30' })
   @Get('mts1/rounds')
   getMts1Rounds(@Query('date') date?: string) {
     return this.mts1.fetchRounds(date);
   }
 
-  /** MTS-1 — Stats mensuelles */
   @ApiQuery({ name: 'month', required: false, example: '2026-05' })
   @Get('mts1/stats')
   getMts1Stats(@Query('month') month?: string) {
     return this.mts1.fetchMonthlyStats(month);
   }
 
-  /** MTS-1 — KM parcourus sur un mois (somme distanceKm de tous les rounds) */
   @ApiQuery({ name: 'month', required: false, example: '2026-05' })
   @Get('mts1/km')
   getMts1Km(@Query('month') month?: string) {
     return this.mts1.fetchMonthlyKm(month);
   }
 
-  /** MTS-1 — Anomalies non traitées */
   @Get('mts1/anomalies')
   getMts1Anomalies() {
     return this.mts1.fetchAnomalies();
