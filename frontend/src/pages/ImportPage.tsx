@@ -23,13 +23,13 @@ interface SheetResult {
 
 function normalizeStr(s: string): string {
   return s.toLowerCase()
-    .replace(/[‘’‚‛′‵]/g, "'") // curly apostrophes → straight
-    .replace(/[éèêë]/g, 'e') // é è ê ë → e
-    .replace(/[àâä]/g, 'a') // à â ä → a
-    .replace(/[ôö]/g, 'o') // ô ö → o
-    .replace(/[ûüù]/g, 'u') // û ü ù → u
-    .replace(/[îï]/g, 'i') // î ï → i
-    .replace(/[ç]/g, 'c'); // ç → c
+    .replace(/['‘’‚‛′‵]/g, "'")
+    .replace(/[éèêë]/g, 'e')
+    .replace(/[àâä]/g, 'a')
+    .replace(/[ôö]/g, 'o')
+    .replace(/[ûüù]/g, 'u')
+    .replace(/[îï]/g, 'i')
+    .replace(/[ç]/g, 'c');
 }
 
 function findCol(headers: string[], keywords: string[]): number {
@@ -42,12 +42,9 @@ function parseDate(val: unknown): string | null {
   if (!val) return null;
   if (val instanceof Date) return val.toISOString().split('T')[0];
   const s = String(val);
-  // dd/mm/yyyy
   const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
-  // yyyy-mm-dd
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
-  // Excel serial
   const n = Number(val);
   if (!isNaN(n) && n > 40000) {
     const d = new Date((n - 25569) * 86400 * 1000);
@@ -62,16 +59,16 @@ function parseNum(val: unknown): number | null {
   return isNaN(n) ? null : n;
 }
 
-// Thank you (Tankyou) — carburant
+// Thank you (Tankyou)
 function parseThankyou(rows: unknown[][]): object[] {
   if (!rows.length) return [];
   const headers = (rows[0] as string[]).map(h => String(h ?? '').trim());
-  const iPlaque  = findCol(headers, ["plaque d’immatriculation", "plaque d'immatriculation", 'immatriculation', 'plaque', 'vehicle']);
+  const iPlaque  = findCol(headers, ["plaque d'immatriculation", 'immatriculation', 'plaque', 'vehicle']);
   const iDate    = findCol(headers, ['date de livraison', 'livraison', 'date de facturation', 'facturation', 'date']);
   const iPrix    = findCol(headers, ['prix unitaire / au litre', 'prix unitaire', 'unit', 'prix/litre', 'litre']);
-  const iVol     = findCol(headers, ['quantité', 'quantite', 'volume', 'qt']);
+  const iVol     = findCol(headers, ['quantite', 'volume', 'qt']);
   const iTotal   = findCol(headers, ['total ht', 'montant ht', 'total']);
-  const iProduit = findCol(headers, ['produit / service', 'produit', 'service', 'désignation']);
+  const iProduit = findCol(headers, ['produit / service', 'produit', 'service', 'designation']);
   const iFuel    = findCol(headers, ['type de carburant', 'carburant', 'fuel']);
 
   const out: object[] = [];
@@ -79,7 +76,7 @@ function parseThankyou(rows: unknown[][]): object[] {
     const produit = String(row[iProduit] ?? '').toLowerCase();
     if (produit.includes('frais')) continue;
     const plaque = String(row[iPlaque] ?? '').trim();
-    const date   = parseDate(iDate >= 0 ? row[iDate] : row[3]); // fallback date de livraison col 3
+    const date   = parseDate(iDate >= 0 ? row[iDate] : row[3]);
     const prix   = parseNum(row[iPrix]);
     const vol    = parseNum(row[iVol]);
     const total  = parseNum(row[iTotal]);
@@ -91,13 +88,13 @@ function parseThankyou(rows: unknown[][]): object[] {
   return out;
 }
 
-// Total Mobility — lubrifiants/AdBlue
+// Total Mobility
 function parseTotalMobility(rows: unknown[][]): object[] {
   if (!rows.length) return [];
   const headers = (rows[0] as string[]).map(h => String(h ?? ''));
   const iDate  = findCol(headers, ['date']);
-  const iDesc  = findCol(headers, ['désignation', 'designation', 'produit']);
-  const iQte   = findCol(headers, ['quantité', 'quantite', 'qté']);
+  const iDesc  = findCol(headers, ['designation', 'produit']);
+  const iQte   = findCol(headers, ['quantite', 'qte']);
   const iPrix  = findCol(headers, ['prix unitaire', 'prix unit']);
   const iTotal = findCol(headers, ['montant ht', 'total ht', 'montant']);
 
@@ -109,21 +106,20 @@ function parseTotalMobility(rows: unknown[][]): object[] {
     const prix  = parseNum(row[iPrix]);
     const total = parseNum(row[iTotal]);
     if (!date || !desc || !qte || !prix) continue;
-    // Ignorer les lignes pivot/totaux
-    if (!row[iDate] || typeof row[iDate] === 'string' && row[iDate].toLowerCase().includes('data')) continue;
+    if (!row[iDate] || typeof row[iDate] === 'string' && (row[iDate] as string).toLowerCase().includes('data')) continue;
     out.push({ date, description: desc, quantity: qte, unitPriceEur: prix, totalEur: total ?? +(prix * qte).toFixed(2) });
   }
   return out;
 }
 
-// Entretiens divers
+// Entretiens
 function parseEntretiens(rows: unknown[][]): object[] {
   if (!rows.length) return [];
   const headers = (rows[0] as string[]).map(h => String(h ?? ''));
   const iDate  = findCol(headers, ['date']);
   const iImmat = findCol(headers, ['immatriculation', 'plaque', 'immat']);
-  const iType  = findCol(headers, ['entretien', 'type', 'désignation', 'description']);
-  const iPrix  = findCol(headers, ['prix', 'montant', 'coût', 'cout', 'total']);
+  const iType  = findCol(headers, ['entretien', 'type', 'designation', 'description']);
+  const iPrix  = findCol(headers, ['prix', 'montant', 'cout', 'total']);
 
   const out: object[] = [];
   for (const row of rows.slice(1)) {
@@ -141,11 +137,11 @@ function parseEntretiens(rows: unknown[][]): object[] {
 function parseAssurances(rows: unknown[][]): object[] {
   if (!rows.length) return [];
   const headers = (rows[0] as string[]).map(h => String(h ?? ''));
-  const iImmat  = findCol(headers, ['immatriculation', 'plaque', 'véhicule', 'vehicule']);
-  const iMarque = findCol(headers, ['marque', 'modèle', 'modele']);
+  const iImmat  = findCol(headers, ['immatriculation', 'plaque', 'vehicule']);
+  const iMarque = findCol(headers, ['marque', 'modele']);
   const iPrime  = findCol(headers, ['prime', 'cotisation', 'montant', 'total', 'ttc']);
-  const iDebut  = findCol(headers, ['début', 'debut', 'effet', 'date début']);
-  const iFin    = findCol(headers, ['fin', 'échéance', 'echeance']);
+  const iDebut  = findCol(headers, ['debut', 'effet', 'date debut']);
+  const iFin    = findCol(headers, ['fin', 'echeance']);
 
   const out: object[] = [];
   for (const row of rows.slice(1)) {
@@ -170,9 +166,9 @@ function parseLocation(rows: unknown[][]): object[] {
   const headers = (rows[0] as string[]).map(h => String(h ?? ''));
   const iDate   = findCol(headers, ['date']);
   const iLoueur = findCol(headers, ['loueur', 'fournisseur']);
-  const iModele = findCol(headers, ['modele', 'modèle', 'véhicule']);
+  const iModele = findCol(headers, ['modele', 'vehicule']);
   const iImmat  = findCol(headers, ['immatriculation', 'plaque']);
-  const iJrs    = findCol(headers, ['jours', 'jrs', 'durée']);
+  const iJrs    = findCol(headers, ['jours', 'jrs', 'duree']);
   const iLoyer  = findCol(headers, ['loyer', 'location', 'montant']);
   const iAssur  = findCol(headers, ['assurance']);
 
@@ -199,11 +195,11 @@ function parseLocation(rows: unknown[][]): object[] {
 function parseInfractions(rows: unknown[][]): object[] {
   if (!rows.length) return [];
   const headers = (rows[0] as string[]).map(h => String(h ?? ''));
-  const iDate      = findCol(headers, ['date']);
-  const iType      = findCol(headers, ['infraction', 'type', 'désignation']);
-  const iDriver    = findCol(headers, ['chauffeur', 'conducteur', 'driver']);
-  const iMontant   = findCol(headers, ['montant', 'amende', 'total']);
-  const iImpute    = findCol(headers, ['imputation', 'impute', 'société']);
+  const iDate    = findCol(headers, ['date']);
+  const iType    = findCol(headers, ['infraction', 'type', 'designation']);
+  const iDriver  = findCol(headers, ['chauffeur', 'conducteur', 'driver']);
+  const iMontant = findCol(headers, ['montant', 'amende', 'total']);
+  const iImpute  = findCol(headers, ['imputation', 'impute', 'societe']);
 
   const out: object[] = [];
   for (const row of rows.slice(1)) {
@@ -212,10 +208,10 @@ function parseInfractions(rows: unknown[][]): object[] {
     if (!date || !montant) continue;
     out.push({
       date,
-      type:      iType   >= 0 ? String(row[iType]   ?? '') : '',
-      driver:    iDriver >= 0 ? String(row[iDriver]  ?? '') : '',
-      amountEur: montant,
-      imputation:iImpute >= 0 ? String(row[iImpute]  ?? '') : '',
+      type:       iType   >= 0 ? String(row[iType]   ?? '') : '',
+      driver:     iDriver >= 0 ? String(row[iDriver]  ?? '') : '',
+      amountEur:  montant,
+      imputation: iImpute >= 0 ? String(row[iImpute]  ?? '') : '',
     });
   }
   return out;
@@ -225,8 +221,8 @@ function parseInfractions(rows: unknown[][]): object[] {
 function parseAmortissement(rows: unknown[][]): object[] {
   if (!rows.length) return [];
   const headers = (rows[0] as string[]).map(h => String(h ?? ''));
-  const iVeh    = findCol(headers, ['vehicule', 'véhicule', 'camion']);
-  const iAchat  = findCol(headers, ['prix achat', 'valeur', 'coût', 'cout']);
+  const iVeh    = findCol(headers, ['vehicule', 'camion']);
+  const iAchat  = findCol(headers, ['prix achat', 'valeur', 'cout']);
   const iDate   = findCol(headers, ['date achat', 'date']);
   const iValNet = findCol(headers, ['valeur nette', 'vnet', 'net']);
 
@@ -248,18 +244,18 @@ function parseAmortissement(rows: unknown[][]): object[] {
 // ─── Sheet mapping ─────────────────────────────────────────────────────────────
 
 const SHEET_CONFIG: { keywords: string[]; label: string; endpoint: string; parser: (r: unknown[][]) => object[] }[] = [
-  { keywords: ['thank you', 'tankyou', 'carburant'],  label: 'Carburant (Tankyou)',   endpoint: '/import/fuel',          parser: parseThankyou },
+  { keywords: ['thank you', 'tankyou', 'carburant'],  label: 'Carburant (Tankyou)',   endpoint: '/import/fuel',           parser: parseThankyou },
   { keywords: ['total mobility', 'total'],            label: 'Total Mobility',         endpoint: '/import/total-mobility', parser: parseTotalMobility },
-  { keywords: ['entretien', 'maintenance', 'divers'], label: 'Entretiens',             endpoint: '/import/maintenance',   parser: parseEntretiens },
-  { keywords: ['assurance'],                          label: 'Assurances',             endpoint: '/import/insurance',     parser: parseAssurances },
-  { keywords: ['location vl', 'location'],            label: 'Location VL',            endpoint: '/import/rental',        parser: parseLocation },
-  { keywords: ['infraction', 'amende'],               label: 'Infractions',            endpoint: '/import/infractions',   parser: parseInfractions },
-  { keywords: ['amortissement'],                      label: 'Amortissement',          endpoint: '/import/depreciation',  parser: parseAmortissement },
+  { keywords: ['entretien', 'maintenance', 'divers'], label: 'Entretiens',             endpoint: '/import/maintenance',    parser: parseEntretiens },
+  { keywords: ['assurance'],                          label: 'Assurances',             endpoint: '/import/insurance',      parser: parseAssurances },
+  { keywords: ['location vl', 'location'],            label: 'Location VL',            endpoint: '/import/rental',         parser: parseLocation },
+  { keywords: ['infraction', 'amende'],               label: 'Infractions',            endpoint: '/import/infractions',    parser: parseInfractions },
+  { keywords: ['amortissement'],                      label: 'Amortissement',          endpoint: '/import/depreciation',   parser: parseAmortissement },
 ];
 
 function matchSheet(name: string) {
-  const n = name.toLowerCase();
-  return SHEET_CONFIG.find(c => c.keywords.some(k => n.includes(k)));
+  const n = normalizeStr(name);
+  return SHEET_CONFIG.find(c => c.keywords.some(k => n.includes(normalizeStr(k))));
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -294,12 +290,10 @@ export default function ImportPage() {
         ? XLSX.read(data, { type: 'array', FS: ';', cellDates: true })
         : XLSX.read(data, { type: 'array', cellDates: true });
 
-      // Pour un CSV, le nom de feuille est le nom du fichier — on essaie aussi de matcher sur le contenu
+      const fileBaseName = file.name.replace(/\.[^.]+$/, '').toLowerCase();
       const detected: SheetResult[] = wb.SheetNames.map(name => {
-        // Pour CSV Tankyou: la feuille s'appelle le nom du fichier, on force la détection
-        const fileBaseName = file.name.replace(/\.[^.]+$/, '').toLowerCase();
         const config = matchSheet(name) || matchSheet(fileBaseName);
-        return { name, status: config ? 'pending' : 'skipped', message: config ? config.label : 'Non reconnu — ignoré' };
+        return { name, status: config ? 'pending' : 'skipped', message: config ? config.label : 'Non reconnu — ignore' };
       });
       setSheets(detected);
     };
@@ -333,7 +327,7 @@ export default function ImportPage() {
         const records = config.parser(rows as unknown[][]);
 
         if (records.length === 0) {
-          setSheets(prev => prev.map(s => s.name === sheet.name ? { ...s, status: 'done', result: { source: sheet.name, inserted: 0, skipped: 0, errors: ['Aucune ligne valide détectée'] } } : s));
+          setSheets(prev => prev.map(s => s.name === sheet.name ? { ...s, status: 'done', result: { source: sheet.name, inserted: 0, skipped: 0, errors: ['Aucune ligne valide detectee'] } } : s));
           continue;
         }
 
@@ -359,7 +353,7 @@ export default function ImportPage() {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Import mensuel</h1>
-        <p className="text-gray-500 mt-1">Uploadez votre fichier Excel de charges flotte pour mettre à jour toutes les données.</p>
+        <p className="text-gray-500 mt-1">Uploadez votre fichier Excel de charges flotte pour mettre a jour toutes les donnees.</p>
         {lastImport && <p className="text-xs text-green-600 mt-1">Dernier import : {lastImport}</p>}
       </div>
 
@@ -373,7 +367,7 @@ export default function ImportPage() {
             {lastImports.map(imp => (
               <div key={imp.provider} className="flex items-center justify-between px-5 py-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-lg">⛽</span>
+                  <span className="text-lg">&#9981;</span>
                   <span className="font-medium text-gray-800 text-sm capitalize">{imp.provider}</span>
                 </div>
                 <div className="text-right text-xs text-gray-500">
@@ -393,15 +387,81 @@ export default function ImportPage() {
         onClick={() => fileRef.current?.click()}
         className="border-2 border-dashed border-blue-300 rounded-xl p-10 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors mb-6"
       >
-        <div className="text-4xl mb-3">📂</div>
+        <div className="text-4xl mb-3">&#128194;</div>
         {fileName
           ? <p className="font-semibold text-blue-700">{fileName}</p>
-          : <p className="text-gray-500">Cliquez pour sélectionner votre fichier <strong>.xlsx</strong></p>
+          : <p className="text-gray-500">Cliquez pour selectionner votre fichier <strong>.xlsx</strong></p>
         }
-        <p className="text-xs text-gray-400 mt-1">Charges_VL_v4.xlsx · Thank you · Total Mobility · Entretiens · Assurances · Location · Infractions · Amortissement</p>
+        <p className="text-xs text-gray-400 mt-1">Charges_VL_v4.xlsx - Thank you - Total Mobility - Entretiens - Assurances - Location - Infractions - Amortissement</p>
         <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFile} />
       </div>
 
       {/* Sheet detection */}
       {sheets.length > 0 && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6"
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <h2 className="font-semibold text-gray-800">Feuilles detectees</h2>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {sheets.map(s => (
+              <div key={s.name} className="flex items-center justify-between px-5 py-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-lg">
+                    {s.status === 'pending'    ? '&#9203;' :
+                     s.status === 'processing' ? '&#9881;' :
+                     s.status === 'done'       ? '&#9989;' :
+                     s.status === 'error'      ? '&#10060;' : '&#9898;'}
+                  </span>
+                  <div>
+                    <p className="font-medium text-gray-800 text-sm">{s.name}</p>
+                    {s.message && <p className="text-xs text-gray-400">{s.message}</p>}
+                  </div>
+                </div>
+                <div className="text-right text-xs">
+                  {s.result && (
+                    <>
+                      <span className="text-green-600 font-semibold">{s.result.inserted} inseres</span>
+                      {s.result.skipped > 0 && <span className="text-gray-400 ml-2">{s.result.skipped} ignores</span>}
+                    </>
+                  )}
+                  {s.status === 'processing' && <span className="text-blue-500 animate-pulse">En cours...</span>}
+                  {s.status === 'error' && <span className="text-red-500">{s.message}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Actions */}
+      {pendingCount > 0 && (
+        <button
+          onClick={handleImport}
+          disabled={running}
+          className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {running ? 'Import en cours...' : `Importer (${pendingCount} feuille${pendingCount > 1 ? 's' : ''})`}
+        </button>
+      )}
+
+      {/* Summary */}
+      {done && totalInserted > 0 && (
+        <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+          <p className="text-green-700 font-semibold text-lg">Import termine — {totalInserted} enregistrements inseres</p>
+          <p className="text-green-500 text-sm mt-1">Les donnees sont disponibles dans tous les onglets</p>
+        </div>
+      )}
+
+      {/* Instructions */}
+      <div className="mt-6 bg-gray-50 rounded-xl p-5 text-sm text-gray-600">
+        <p className="font-semibold text-gray-700 mb-2">Comment utiliser</p>
+        <ol className="list-decimal list-inside space-y-1">
+          <li>Exportez votre fichier de charges flotte (Charges_VL_vX.xlsx)</li>
+          <li>Uploadez-le ici — les feuilles sont detectees automatiquement</li>
+          <li>Cliquez sur "Importer" — les donnees remplacent les precedentes</li>
+          <li>Verifiez les onglets Carburant, Entretien, etc.</li>
+        </ol>
+      </div>
+    </div>
+  );
+}

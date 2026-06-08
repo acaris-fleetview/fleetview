@@ -54,4 +54,12 @@ export const fuelApi = {
 
 // ─── Connectors ──────────────────────────────────────────────────────────────
 export const connectorsApi = {
-  positions: () => api.get('/conne
+  positions: () => api.get('/connectors/webfleet/positions').then(r => r.data),
+  mts1Rounds: (date?: string) =>
+    api.get('/connectors/mts1/rounds', { params: { date } }).then(r => r.data),
+  mts1Stats: (month?: string) =>
+    api.get('/connectors/mts1/stats', { params: { month } }).then(r => r.data),
+  mts1Anomalies: () => api.get('/connectors/mts1/anomalies').then(r => r.data),
+};
+
+export default api;
