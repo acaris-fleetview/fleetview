@@ -102,8 +102,8 @@ function parseTotalCarburant(rows: unknown[][]): object[] {
   const iTTC     = findCol(headers, ['montant ttc']);
   const iKm      = findCol(headers, ['kilometrage', 'kilometrage']);
   const iStation = findCol(headers, ['lieu enlevement', 'station']);
-  const EXCLUDED = ['accessoire', 'peage', 'lavage', 'boisson', 'cafe'];
-  const FUEL_PRODUCTS = ['diesel', 'gazole', 'adblue', 'lubrifiant', 'sans plomb', 'b10', 'excellium', 'sp95', 'sp98'];
+  const EXCLUDED = ['accessoire', 'peage', 'lavage', 'boisson', 'cafe', 'lubrifiant'];
+  const FUEL_PRODUCTS = ['diesel', 'gazole', 'adblue', 'sans plomb', 'b10', 'excellium', 'sp95', 'sp98'];
   const out: object[] = [];
   for (const row of rows.slice(1)) {
     const produit = normalizeStr(String(row[iProduit] ?? ''));
