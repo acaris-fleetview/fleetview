@@ -29,10 +29,10 @@ export class FuelService {
     const rows = await this.transactions
       .createQueryBuilder('ft')
       .select('ft.provider', 'provider')
-      .addSelect('MAX(ft.transacted_at)', 'lastDate')
+      .addSelect('MAX(ft.created_at)', 'lastDate')
       .addSelect('COUNT(ft.id)', 'count')
       .groupBy('ft.provider')
-      .orderBy('MAX(ft.transacted_at)', 'DESC')
+      .orderBy('MAX(ft.created_at)', 'DESC')
       .getRawMany();
     return rows.map(r => ({
       provider: r.provider,
