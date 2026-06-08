@@ -62,9 +62,10 @@ export class Mts1Service {
     }
   }
 
-  /** Stats mensuelles (points de livraison, temps moyen) */
+  /** Stats mensuelles avec distanceKm */
   async fetchMonthlyStats(month?: string): Promise<unknown> {
     const targetMonth = month ?? new Date().toISOString().slice(0, 7);
+    // Try with totalDistanceKm first, fallback without if field doesn't exist
     const gql = `
       query GetMonthlyStats($shipperId: ID!, $month: String!) {
         monthlyStats(shipperId: $shipperId, month: $month) {
@@ -72,6 +73,7 @@ export class Mts1Service {
           pendingPdl
           avgTimePerPointMin
           avgTimePerOtMin
+          totalDistanceKm
         }
       }
     `;
@@ -83,8 +85,76 @@ export class Mts1Service {
       return result?.monthlyStats ?? null;
     } catch (err) {
       this.logger.error('fetchMonthlyStats error', err?.message);
-      return null;
+      // Fallback without totalDistanceKm
+      try {
+        const gqlFallback = `
+          query GetMonthlyStats($shipperId: ID!, $month: String!) {
+            monthlyStats(shipperId: $shipperId, month: $month) {
+              totalPdl
+              pendingPdl
+              avgTimePerPointMin
+              avgTimePerOtMin
+            }
+          }
+        `;
+        const result2 = await this.query<{ monthlyStats: unknown }>(gqlFallback, {
+          shipperId: MTS1_SHIPPER_ID,
+          month: targetMonth,
+        });
+        return result2?.monthlyStats ?? null;
+      } catch {
+        return null;
+      }
     }
+  }
+
+  /** KM parcourus sur un mois — somme des distanceKm de tous les rounds du mois */
+  async fetchMonthlyKm(month?: string): Promise<{ totalKm: number; roundCount: number }> {
+    const targetMonth = month ?? new Date().toISOString().slice(0, 7);
+    const [year, mon] = targetMonth.split('-').map(Number);
+    const daysInMonth = new Date(year, mon, 0).getDate();
+
+    let totalKm = 0;
+    let roundCount = 0;
+
+    // Fetch rounds for each day of the month in parallel (batches of 10)
+    const dates: string[] = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      dates.push(`${targetMonth}-${String(d).padStart(2, '0')}`);
+    }
+
+    const gql = `
+      query GetRounds($shipperId: ID!, $date: String!) {
+        rounds(shipperId: $shipperId, date: $date) {
+          distanceKm
+        }
+      }
+    `;
+
+    // Process in batches of 5 to avoid overwhelming the API
+    for (let i = 0; i < dates.length; i += 5) {
+      const batch = dates.slice(i, i + 5);
+      const results = await Promise.allSettled(
+        batch.map(date =>
+          this.query<{ rounds: { distanceKm: number }[] }>(gql, {
+            shipperId: MTS1_SHIPPER_ID,
+            date,
+          })
+        )
+      );
+      for (const res of results) {
+        if (res.status === 'fulfilled' && res.value?.rounds) {
+          for (const round of res.value.rounds) {
+            if (round.distanceKm) {
+              totalKm += round.distanceKm;
+              roundCount++;
+            }
+          }
+        }
+      }
+    }
+
+    return { totalKm: Math.round(totalKm), roundCount };
   }
 
   /** Anomalies non traitées */

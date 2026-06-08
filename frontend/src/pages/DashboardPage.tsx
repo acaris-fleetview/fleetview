@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fleetApi, fuelApi } from '../services/api';
+import { fleetApi, fuelApi, connectorsApi } from '../services/api';
 import KpiCard from '../components/common/KpiCard';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -8,25 +8,43 @@ import {
 } from 'recharts';
 
 const PERIODS = [
-  { label: '7 j',   days: 7 },
-  { label: '30 j',  days: 30 },
-  { label: '3 mois',days: 90 },
-  { label: '6 mois',days: 180 },
-  { label: '1 an',  days: 365 },
-  { label: 'Tout',  days: 9999 },
+  { label: '7 j',    days: 7 },
+  { label: '30 j',   days: 30 },
+  { label: '3 mois', days: 90 },
+  { label: '6 mois', days: 180 },
+  { label: '1 an',   days: 365 },
+  { label: 'Tout',   days: 9999 },
 ];
+
+function currentMonth() {
+  return new Date().toISOString().slice(0, 7);
+}
 
 export default function DashboardPage() {
   const [days, setDays] = useState(9999);
 
   const { data: fleetStats } = useQuery({ queryKey: ['fleet-stats'], queryFn: fleetApi.stats });
   const { data: fuelKpi }    = useQuery({ queryKey: ['fuel-kpi', days], queryFn: () => fuelApi.kpi(days) });
-  const { data: fuelMonthly} = useQuery({ queryKey: ['fuel-monthly'],   queryFn: () => fuelApi.kpi(9999) });
+  const { data: fuelAll }    = useQuery({ queryKey: ['fuel-kpi-all'],   queryFn: () => fuelApi.kpi(9999) });
+  const { data: mts1Km }     = useQuery({
+    queryKey: ['mts1-km', currentMonth()],
+    queryFn: () => connectorsApi.mts1Rounds(currentMonth().slice(0, 7)).then(() =>
+      // Use the dedicated km endpoint
+      fetch('/api/v1/connectors/mts1/km?month=' + currentMonth(), {
+        headers: { Authorization: 'Bearer ' + localStorage.getItem('access_token') }
+      }).then(r => r.json())
+    ),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
 
   const fmt = (n?: number, dec = 0) =>
     n != null ? n.toLocaleString('fr-FR', { maximumFractionDigits: dec }) : '0';
 
-  // Build monthly chart data from transactions via kpi calls per month (static mock aligned with real totals)
+  const co2Kg = fuelKpi ? fuelKpi.totalVolumeL * 2.68 : 0;
+  const totalKm: number = (mts1Km as any)?.totalKm ?? 0;
+  const roundCount: number = (mts1Km as any)?.roundCount ?? 0;
+
   const monthlyData = [
     { month: 'Jan', cost: 0, fuel: 0 },
     { month: 'Fev', cost: 0, fuel: 0 },
@@ -36,16 +54,14 @@ export default function DashboardPage() {
     { month: 'Jui', cost: 0, fuel: 0 },
   ];
 
-  const co2Kg = fuelKpi ? fuelKpi.totalVolumeL * 2.68 : 0;
-
   return (
     <div className="p-6 space-y-6">
       {/* Header + period selector */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Tableau de bord</h2>
           <p className="text-sm text-gray-500">
-            {days === 9999 ? 'Toute la période' : `${days} derniers jours`}
+            {days === 9999 ? 'Toute la periode' : `${days} derniers jours`}
           </p>
         </div>
         <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
@@ -68,13 +84,6 @@ export default function DashboardPage() {
       {/* KPI Row 1 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          title="Vehicules actifs"
-          value={fleetStats?.active ?? '0'}
-          subtitle={`${fleetStats?.total ?? '0'} au total`}
-          icon="&#128663;"
-          color="blue"
-        />
-        <KpiCard
           title="Cout carburant"
           value={`${fmt(fuelKpi?.totalCostEur)} EUR`}
           subtitle={`Prix moy. ${fmt(fuelKpi?.avgPriceEur, 3)} EUR/L`}
@@ -84,26 +93,34 @@ export default function DashboardPage() {
         <KpiCard
           title="Volume carburant"
           value={`${fmt(fuelKpi?.totalVolumeL)} L`}
-          subtitle={`${fmt(fuelKpi?.transactionCount)} transactions`}
+          subtitle={`${fuelKpi?.transactionCount ?? 0} transactions`}
           icon="&#128204;"
           color="green"
         />
         <KpiCard
-          title="Alertes fraude ouvertes"
-          value={fuelKpi?.openFraudAlerts ?? '0'}
-          icon="&#9888;"
-          color={(fuelKpi?.openFraudAlerts ?? 0) > 0 ? 'red' : 'green'}
+          title="KM parcourus (mois)"
+          value={totalKm > 0 ? `${fmt(totalKm)} km` : '— km'}
+          subtitle={totalKm > 0 ? `${roundCount} tournees MTS-1` : 'Chargement...'}
+          icon="&#128665;"
+          color="blue"
+        />
+        <KpiCard
+          title="CO2 emis (estime)"
+          value={`${fmt(co2Kg)} kg`}
+          subtitle="2,68 kg/L diesel (ADEME)"
+          icon="&#127807;"
+          color="purple"
         />
       </div>
 
       {/* KPI Row 2 */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          title="CO2 emis (estimé)"
-          value={`${fmt(co2Kg)} kg`}
-          subtitle="2,68 kg/L diesel (ADEME)"
-          icon="&#127807;"
-          color="purple"
+          title="Cout total (tout)"
+          value={`${fmt(fuelAll?.totalCostEur)} EUR`}
+          subtitle="Toutes periodes"
+          icon="&#128182;"
+          color="amber"
         />
         <KpiCard
           title="Transactions carburant"
@@ -112,17 +129,16 @@ export default function DashboardPage() {
           color="green"
         />
         <KpiCard
-          title="Vehicules flotte"
-          value={fleetStats?.total ?? '0'}
-          icon="&#128665;"
-          color="blue"
+          title="Alertes fraude"
+          value={fuelKpi?.openFraudAlerts ?? '0'}
+          icon="&#9888;"
+          color={(fuelKpi?.openFraudAlerts ?? 0) > 0 ? 'red' : 'green'}
         />
         <KpiCard
-          title="Cout total (tout)"
-          value={`${fmt(fuelMonthly?.totalCostEur)} EUR`}
-          subtitle="Toutes periodes"
-          icon="&#128182;"
-          color="amber"
+          title="Vehicules flotte"
+          value={fleetStats?.total ?? '0'}
+          icon="&#128663;"
+          color="blue"
         />
       </div>
 
@@ -157,6 +173,10 @@ export default function DashboardPage() {
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
               <span className="text-sm text-gray-600">Prix moyen au litre</span>
               <span className="font-semibold text-gray-900">{fmt(fuelKpi?.avgPriceEur, 3)} EUR/L</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+              <span className="text-sm text-gray-600">KM parcourus (mois en cours)</span>
+              <span className="font-semibold text-gray-900">{totalKm > 0 ? fmt(totalKm) + ' km' : '—'}</span>
             </div>
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
               <span className="text-sm text-gray-600">CO2 estime</span>
