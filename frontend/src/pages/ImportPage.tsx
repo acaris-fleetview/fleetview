@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
 import api, { fuelApi } from '../services/api';
 
-// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Types Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// --- Types --------------------------------------------------------------------
 
 interface ImportResult {
   source: string;
@@ -19,7 +19,7 @@ interface SheetResult {
   message?: string;
 }
 
-// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Sheet parsers Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// --- Sheet parsers -------------------------------------------------------------
 
 function normalizeStr(s: string): string {
   return s.toLowerCase()
@@ -281,7 +281,7 @@ function parseAmortissement(rows: unknown[][]): object[] {
   return out;
 }
 
-// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Sheet mapping Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// --- Sheet mapping -------------------------------------------------------------
 
 const SHEET_CONFIG: { keywords: string[]; label: string; endpoint: string; parser: (r: unknown[][]) => object[] }[] = [
   { keywords: ['thank you', 'tankyou', 'carburant'],  label: 'Carburant (Tankyou)',   endpoint: '/import/fuel',           parser: parseThankyou },
@@ -299,7 +299,7 @@ function matchSheet(name: string) {
   return SHEET_CONFIG.find(c => c.keywords.some(k => n.includes(normalizeStr(k))));
 }
 
-// Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂ Component Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ
+// --- Component ----------------------------------------------------------------
 
 export default function ImportPage() {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -334,7 +334,7 @@ export default function ImportPage() {
       const fileBaseName = file.name.replace(/\.[^.]+$/, '').toLowerCase();
       const detected: SheetResult[] = wb.SheetNames.map(name => {
         const config = matchSheet(name) || matchSheet(fileBaseName);
-        return { name, status: config ? 'pending' : 'skipped', message: config ? config.label : 'Non reconnu Ã¢ÂÂ ignore' };
+        return { name, status: config ? 'pending' : 'skipped', message: config ? config.label : 'Non reconnu — ignore' };
       });
       setSheets(detected);
     };
@@ -488,7 +488,7 @@ export default function ImportPage() {
       {/* Summary */}
       {done && totalInserted > 0 && (
         <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-          <p className="text-green-700 font-semibold text-lg">Import termine Ã¢ÂÂ {totalInserted} enregistrements inseres</p>
+          <p className="text-green-700 font-semibold text-lg">Import termine — {totalInserted} enregistrements inseres</p>
           <p className="text-green-500 text-sm mt-1">Les donnees sont disponibles dans tous les onglets</p>
         </div>
       )}
@@ -498,8 +498,8 @@ export default function ImportPage() {
         <p className="font-semibold text-gray-700 mb-2">Comment utiliser</p>
         <ol className="list-decimal list-inside space-y-1">
           <li>Exportez votre fichier de charges flotte (Charges_VL_vX.xlsx)</li>
-          <li>Uploadez-le ici Ã¢ÂÂ les feuilles sont detectees automatiquement</li>
-          <li>Cliquez sur "Importer" Ã¢ÂÂ les donnees remplacent les precedentes</li>
+          <li>Uploadez-le ici — les feuilles sont detectees automatiquement</li>
+          <li>Cliquez sur "Importer" — les donnees remplacent les precedentes</li>
           <li>Verifiez les onglets Carburant, Entretien, etc.</li>
         </ol>
       </div>
