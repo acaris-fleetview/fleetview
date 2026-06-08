@@ -16,32 +16,13 @@ export class FuelService {
     if (vehicleId) qb.andWhere('ft.vehicle_id = :vehicleId', { vehicleId });
     if (from) qb.andWhere('ft.transacted_at >= :from', { from });
     if (to) qb.andWhere('ft.transacted_at <= :to', { to });
-    return qb.getMany();
+    return qb.limit(200).getMany();
   }
 
   findFraudAlerts(status?: string) {
     const where: any = {};
     if (status) where.status = status;
     return this.fraudAlerts.find({ where, order: { createdAt: 'DESC' } });
-  }
-
-  async fuelKpi(days: number = 30) {
-    const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    const result = await this.transactions.createQueryBuilder('ft')
-      .select('SUM(ft.total_eur)', 'totalCost')
-      .addSelect('SUM(ft.volume_l)', 'totalVolume')
-      .addSelect('COUNT(ft.id)', 'txCount')
-      .addSelect('AVG(ft.unit_price_eur)', 'avgPrice')
-      .where('ft.transacted_at >= :from', { from })
-      .getRawOne();
-    const fraudCount = await this.fraudAlerts.count({ where: { status: 'open' } });
-    return {
-      totalCostEur: parseFloat(result.totalCost) || 0,
-      totalVolumeL: parseFloat(result.totalVolume) || 0,
-      transactionCount: parseInt(result.txCount) || 0,
-      avgPriceEur: parseFloat(result.avgPrice) || 0,
-      openFraudAlerts: fraudCount,
-    };
   }
 
   async lastImportByProvider() {
@@ -60,4 +41,10 @@ export class FuelService {
     }));
   }
 
-}
+  async fuelKpi(days: number = 30) {
+    const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const result = await this.transactions.createQueryBuilder('ft')
+      .select('SUM(ft.total_eur)', 'totalCost')
+      .addSelect('SUM(ft.volume_l)', 'totalVolume')
+      .addSelect('COUNT(ft.id)', 'txCount')
+      .addSelect('AV

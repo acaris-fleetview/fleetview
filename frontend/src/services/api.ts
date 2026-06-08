@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const api = axios.create({ baseURL: `${import.meta.env.VITE_API_URL || ''}/api/v1` });
+const api = axios.create({ baseURL: '/api/v1' });
 
 // Inject JWT on every request
 api.interceptors.request.use(cfg => {
@@ -9,20 +9,16 @@ api.interceptors.request.use(cfg => {
   return cfg;
 });
 
-// Redirection automatique vers /login si token expiré (401)
+// Redirect to login on 401
 api.interceptors.response.use(
   r => r,
   err => {
-    if (err?.response?.status === 401) {
-      // Ne pas rediriger si on est déjà sur /login ou si c'est un appel auth/login
-      const isLoginCall = err?.config?.url?.includes('/auth/login');
-      if (!isLoginCall && !window.location.pathname.includes('/login')) {
-        localStorage.removeItem('access_token');
-        window.location.href = '/login';
-      }
+    if (err.response?.status === 401) {
+      localStorage.removeItem('access_token');
+      window.location.href = '/login';
     }
     return Promise.reject(err);
-  },
+  }
 );
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
@@ -39,34 +35,23 @@ export const fleetApi = {
   stats: () => api.get('/fleet/stats').then(r => r.data),
 };
 
-// ─── Fuel ────────────────────────────────────────────────────────────────────
+// ─── Telemetry ───────────────────────────────────────────────────────────────
+export const telemetryApi = {
+  trips: (vehicleId: string, from?: string, to?: string) =>
+    api.get(`/telemetry/trips/${vehicleId}`, { params: { from, to } }).then(r => r.data),
+  kpi: (days = 30) => api.get('/telemetry/kpi', { params: { days } }).then(r => r.data),
+};
+
+// ─── Fuel ─────────────────────────────────────────────────────────────────────
 export const fuelApi = {
   transactions: (from?: string, to?: string, vehicleId?: string) =>
     api.get('/fuel/transactions', { params: { from, to, vehicleId } }).then(r => r.data),
-  kpi: (days = 30) => api.get('/fuel/kpi', { params: { days } }).then(r => r.data),
-  lastImports: () => api.get('/fuel/last-imports').then(r => r.data),
   fraudAlerts: (status?: string) =>
     api.get('/fuel/fraud-alerts', { params: { status } }).then(r => r.data),
+  kpi: (days = 30) => api.get('/fuel/kpi', { params: { days } }).then(r => r.data),
+  lastImports: () => api.get('/fuel/last-imports').then(r => r.data),
 };
 
-// ─── Telemetry ───────────────────────────────────────────────────────────────
-export const telemetryApi = {
-  kpi: (days = 30) => api.get(`/telemetry/kpi?days=${days}`).then(r => r.data),
-};
-
-// ─── Connectors / Map ────────────────────────────────────────────────────────
+// ─── Connectors ──────────────────────────────────────────────────────────────
 export const connectorsApi = {
-  positions: () => api.get('/connectors/positions').then(r => r.data),
-};
-
-// ─── Alerts ──────────────────────────────────────────────────────────────────
-export const alertsApi = {
-  list: () => api.get('/alerts').then(r => r.data),
-};
-
-// ─── Map ─────────────────────────────────────────────────────────────────────
-export const mapApi = {
-  positions: () => api.get('/map/positions').then(r => r.data),
-};
-
-export default api;
+  positions: () => api.get('/conne

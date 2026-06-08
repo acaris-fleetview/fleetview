@@ -3,263 +3,384 @@ import { useQuery } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
 import api, { fuelApi } from '../services/api';
 
-interface ImportResult { source: string; inserted: number; skipped: number; errors: string[]; }
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface ImportResult {
+  source: string;
+  inserted: number;
+  skipped: number;
+  errors: string[];
+}
+
 interface SheetResult {
   name: string;
-  label: string;
-  icon: string;
   status: 'pending' | 'processing' | 'done' | 'error' | 'skipped';
   result?: ImportResult;
   message?: string;
 }
 
+// ─── Sheet parsers ─────────────────────────────────────────────────────────────
+
 function normalizeStr(s: string): string {
   return s.toLowerCase()
-    .replace(/[''\u2018\u2019\u201a\u201b\u2032\u2035]/g, "'")
-    .replace(/[éèêë]/g, 'e')
-    .replace(/[àâä]/g, 'a')
-    .replace(/[ôö]/g, 'o')
-    .replace(/[ûüù]/g, 'u')
-    .replace(/[îï]/g, 'i')
-    .replace(/[ç]/g, 'c');
+    .replace(/[‘’‚‛′‵]/g, "'") // curly apostrophes → straight
+    .replace(/[éèêë]/g, 'e') // é è ê ë → e
+    .replace(/[àâä]/g, 'a') // à â ä → a
+    .replace(/[ôö]/g, 'o') // ô ö → o
+    .replace(/[ûüù]/g, 'u') // û ü ù → u
+    .replace(/[îï]/g, 'i') // î ï → i
+    .replace(/[ç]/g, 'c'); // ç → c
 }
 
 function findCol(headers: string[], keywords: string[]): number {
-  return headers.findIndex(h => h && keywords.some(k => normalizeStr(h).includes(normalizeStr(k))));
+  return headers.findIndex(h =>
+    h && keywords.some(k => normalizeStr(h).includes(normalizeStr(k)))
+  );
 }
+
 function parseDate(val: unknown): string | null {
   if (!val) return null;
   if (val instanceof Date) return val.toISOString().split('T')[0];
   const s = String(val);
+  // dd/mm/yyyy
   const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0,10);
+  // yyyy-mm-dd
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
+  // Excel serial
   const n = Number(val);
-  if (!isNaN(n) && n > 40000) return new Date((n-25569)*86400*1000).toISOString().split('T')[0];
+  if (!isNaN(n) && n > 40000) {
+    const d = new Date((n - 25569) * 86400 * 1000);
+    return d.toISOString().split('T')[0];
+  }
   return null;
 }
+
 function parseNum(val: unknown): number | null {
-  if (val===null||val===undefined||val==='') return null;
-  const n = parseFloat(String(val).replace(',','.'));
+  if (val === null || val === undefined || val === '') return null;
+  const n = parseFloat(String(val).replace(',', '.'));
   return isNaN(n) ? null : n;
 }
 
+// Thank you (Tankyou) — carburant
 function parseThankyou(rows: unknown[][]): object[] {
   if (!rows.length) return [];
-  const h = (rows[0] as string[]).map(x=>String(x??''));
-  const iPlaque=findCol(h,['immatriculation','plaque','vehicle']);
-  const iDate=findCol(h,['livraison','facturation','date']);
-  const iPrix=findCol(h,['prix unitaire','unit','prix/litre','litre']);
-  const iVol=findCol(h,['quantitÃ©','quantite','volume','qt']);
-  const iTotal=findCol(h,['total ht','montant ht','total']);
-  const iProduit=findCol(h,['produit','service','dÃ©signation']);
+  const headers = (rows[0] as string[]).map(h => String(h ?? '').trim());
+  const iPlaque  = findCol(headers, ["plaque d’immatriculation", "plaque d'immatriculation", 'immatriculation', 'plaque', 'vehicle']);
+  const iDate    = findCol(headers, ['date de livraison', 'livraison', 'date de facturation', 'facturation', 'date']);
+  const iPrix    = findCol(headers, ['prix unitaire / au litre', 'prix unitaire', 'unit', 'prix/litre', 'litre']);
+  const iVol     = findCol(headers, ['quantité', 'quantite', 'volume', 'qt']);
+  const iTotal   = findCol(headers, ['total ht', 'montant ht', 'total']);
+  const iProduit = findCol(headers, ['produit / service', 'produit', 'service', 'désignation']);
+  const iFuel    = findCol(headers, ['type de carburant', 'carburant', 'fuel']);
+
   const out: object[] = [];
   for (const row of rows.slice(1)) {
-    if (String(row[iProduit]??'').toLowerCase().includes('frais')) continue;
-    const plaque=String(row[iPlaque]??'').trim(), date=parseDate(row[iDate]);
-    const prix=parseNum(row[iPrix]), vol=parseNum(row[iVol]), total=parseNum(row[iTotal]);
-    if (!plaque||!date||!prix||!vol||prix>5||prix<0.5||vol<1) continue;
-    out.push({ vehicleId:plaque, transactedAt:date, volumeL:vol, unitPriceEur:prix, totalEur:total??+(prix*vol).toFixed(2), fuelType:'Gasoil' });
-  }
-  return out;
-}
-function parseTotalMobility(rows: unknown[][]): object[] {
-  if (!rows.length) return [];
-  const h=(rows[0] as string[]).map(x=>String(x??''));
-  const iDate=findCol(h,['date']),iDesc=findCol(h,['dÃ©signation','designation','produit']);
-  const iQte=findCol(h,['quantitÃ©','quantite','qtÃ©']),iPrix=findCol(h,['prix unitaire','prix unit']);
-  const iTotal=findCol(h,['montant ht','total ht','montant']);
-  const out: object[] = [];
-  for (const row of rows.slice(1)) {
-    const date=parseDate(row[iDate]),desc=String(row[iDesc]??'').trim();
-    const qte=parseNum(row[iQte]),prix=parseNum(row[iPrix]),total=parseNum(row[iTotal]);
-    if (!date||!desc||!qte||!prix) continue;
-    if (typeof row[iDate]==='string'&&row[iDate].toLowerCase().includes('data')) continue;
-    out.push({ date, description:desc, quantity:qte, unitPriceEur:prix, totalEur:total??+(prix*qte).toFixed(2) });
-  }
-  return out;
-}
-function parseEntretiens(rows: unknown[][]): object[] {
-  if (!rows.length) return [];
-  const h=(rows[0] as string[]).map(x=>String(x??''));
-  const iDate=findCol(h,['date']),iImmat=findCol(h,['immatriculation','plaque','immat']);
-  const iType=findCol(h,['entretien','type','dÃ©signation','description']),iPrix=findCol(h,['prix','montant','coÃ»t','cout','total']);
-  const out: object[] = [];
-  for (const row of rows.slice(1)) {
-    const date=parseDate(row[iDate]),immat=String(row[iImmat]??'').trim(),type=String(row[iType]??'').trim();
-    if (!date||!immat||!type) continue;
-    out.push({ vehicleId:immat, date, type, costEur:parseNum(row[iPrix])??0 });
-  }
-  return out;
-}
-function parseAssurances(rows: unknown[][]): object[] {
-  if (!rows.length) return [];
-  let hi = 0;
-  for (let i=0;i<Math.min(rows.length,10);i++) {
-    if ((rows[i] as unknown[]).filter(c=>c!==null&&String(c).trim()!=='').length>=2){hi=i;break;}
-  }
-  const h=(rows[hi] as string[]).map(x=>String(x??''));
-  const iImmat=findCol(h,['immatriculation','plaque','vÃ©hicule','vehicule']);
-  const iMarque=findCol(h,['marque','modÃ¨le','modele']);
-  const iPrime=findCol(h,['prime','cotisation','montant','ttc','annuel','total']);
-  const iDebut=findCol(h,['dÃ©but','debut','effet','date dÃ©but']);
-  const iFin=findCol(h,['fin','Ã©chÃ©ance','echeance']);
-  const out: object[] = [];
-  for (const row of rows.slice(hi+1)) {
-    const immat=iImmat>=0?String(row[iImmat]??'').trim():'';
-    const prime=parseNum(row[iPrime]);
-    if (!prime) continue;
-    out.push({ vehicleId:immat||'FLOTTE', marque:iMarque>=0?String(row[iMarque]??''):'',
-      annualPremiumEur:prime, startDate:iDebut>=0?parseDate(row[iDebut]):null, endDate:iFin>=0?parseDate(row[iFin]):null });
-  }
-  return out;
-}
-function parseLocation(rows: unknown[][]): object[] {
-  if (!rows.length) return [];
-  const h=(rows[0] as string[]).map(x=>String(x??''));
-  const iDate=findCol(h,['date']),iLoueur=findCol(h,['loueur','fournisseur']);
-  const iModele=findCol(h,['modele','modÃ¨le','vÃ©hicule']),iImmat=findCol(h,['immatriculation','plaque']);
-  const iJrs=findCol(h,['jours','jrs','durÃ©e']),iLoyer=findCol(h,['loyer','location','montant']),iAssur=findCol(h,['assurance']);
-  const out: object[] = [];
-  for (const row of rows.slice(1)) {
-    const date=parseDate(row[iDate]),loyer=parseNum(row[iLoyer]);
-    if (!date||!loyer) continue;
-    out.push({ vehicleId:String(row[iImmat]??'').trim(), date, supplier:iLoueur>=0?String(row[iLoueur]??''):'',
-      model:iModele>=0?String(row[iModele]??''):'', days:iJrs>=0?parseNum(row[iJrs]):null,
-      rentalEur:loyer, insuranceEur:iAssur>=0?parseNum(row[iAssur]):null });
-  }
-  return out;
-}
-function parseInfractions(rows: unknown[][]): object[] {
-  if (!rows.length) return [];
-  const h=(rows[0] as string[]).map(x=>String(x??''));
-  const iDate=findCol(h,['date']),iType=findCol(h,['infraction','type','dÃ©signation']);
-  const iDriver=findCol(h,['chauffeur','conducteur']),iMontant=findCol(h,['montant','amende','total']);
-  const iImpute=findCol(h,['imputation','impute','sociÃ©tÃ©']);
-  const out: object[] = [];
-  for (const row of rows.slice(1)) {
-    const date=parseDate(row[iDate]),montant=parseNum(row[iMontant]);
-    if (!date||!montant) continue;
-    out.push({ date, type:iType>=0?String(row[iType]??''):'', driver:iDriver>=0?String(row[iDriver]??''):'',
-      amountEur:montant, imputation:iImpute>=0?String(row[iImpute]??''):'' });
-  }
-  return out;
-}
-function parseAmortissement(rows: unknown[][]): object[] {
-  if (!rows.length) return [];
-  const h=(rows[0] as string[]).map(x=>String(x??''));
-  const iVeh=findCol(h,['vehicule','vÃ©hicule','camion']),iAchat=findCol(h,['prix achat','valeur','coÃ»t','cout']);
-  const iDate=findCol(h,['date achat','date']),iValNet=findCol(h,['valeur nette','vnet','net']);
-  const seen=new Set<string>();const out: object[]=[];
-  for (const row of rows.slice(1)) {
-    const veh=String(row[iVeh]??'').trim();
-    if (!veh||seen.has(veh)) continue;
-    seen.add(veh);
-    const achat=parseNum(row[iAchat]);
-    if (!achat) continue;
-    out.push({ vehicleId:veh, purchaseDate:iDate>=0?parseDate(row[iDate]):null,
-      purchasePriceEur:achat, netValueEur:iValNet>=0?parseNum(row[iValNet]):null });
+    const produit = String(row[iProduit] ?? '').toLowerCase();
+    if (produit.includes('frais')) continue;
+    const plaque = String(row[iPlaque] ?? '').trim();
+    const date   = parseDate(iDate >= 0 ? row[iDate] : row[3]); // fallback date de livraison col 3
+    const prix   = parseNum(row[iPrix]);
+    const vol    = parseNum(row[iVol]);
+    const total  = parseNum(row[iTotal]);
+    const fuel   = iFuel >= 0 ? String(row[iFuel] ?? '').trim() || 'Gasoil' : 'Gasoil';
+    if (!plaque || plaque === 'XX-XXX-XX' || !date || !prix || !vol) continue;
+    if (prix > 5 || prix < 0.5 || vol < 1) continue;
+    out.push({ vehicleId: plaque, transactedAt: date, volumeL: vol, unitPriceEur: prix, totalEur: total ?? +(prix * vol).toFixed(2), fuelType: fuel });
   }
   return out;
 }
 
-const SHEET_CONFIG: { keywords:string[]; label:string; icon:string; destination:string; endpoint:string; parser:(r:unknown[][])=>object[] }[] = [
-  { keywords:['thank you','tankyou','carburant'],  label:'Carburant',      icon:'â½', destination:'Onglet Carburant',    endpoint:'/import/fuel',           parser:parseThankyou },
-  { keywords:['total mobility','total'],           label:'Total Mobility', icon:'ð¢ï¸', destination:'Onglet Carburant',    endpoint:'/import/total-mobility',  parser:parseTotalMobility },
-  { keywords:['entretien','maintenance','divers'],  label:'Entretiens',     icon:'ð§', destination:'Onglet Entretien',    endpoint:'/import/maintenance',     parser:parseEntretiens },
-  { keywords:['assurance'],                        label:'Assurances',     icon:'ð¡ï¸', destination:'Onglet Assurances',   endpoint:'/import/insurance',       parser:parseAssurances },
-  { keywords:['location vl','location'],           label:'Location VL',    icon:'ð', destination:'Onglet Flotte',       endpoint:'/import/rental',          parser:parseLocation },
-  { keywords:['infraction','amende'],              label:'Infractions',    icon:'â ï¸', destination:'Onglet Alertes',      endpoint:'/import/infractions',     parser:parseInfractions },
-  { keywords:['amortissement'],                    label:'Amortissement',  icon:'ð', destination:'Onglet Flotte',       endpoint:'/import/depreciation',    parser:parseAmortissement },
-];
-function matchSheet(name:string, fileName='') {
-  const n = name.toLowerCase();
-  const f = fileName.toLowerCase().replace(/\.[^.]+$/, ''); // sans extension
-  // Essayer le nom de la feuille d'abord, puis le nom du fichier
-  return SHEET_CONFIG.find(c => c.keywords.some(k => n.includes(k)))
-      || SHEET_CONFIG.find(c => c.keywords.some(k => f.includes(k)));
+// Total Mobility — lubrifiants/AdBlue
+function parseTotalMobility(rows: unknown[][]): object[] {
+  if (!rows.length) return [];
+  const headers = (rows[0] as string[]).map(h => String(h ?? ''));
+  const iDate  = findCol(headers, ['date']);
+  const iDesc  = findCol(headers, ['désignation', 'designation', 'produit']);
+  const iQte   = findCol(headers, ['quantité', 'quantite', 'qté']);
+  const iPrix  = findCol(headers, ['prix unitaire', 'prix unit']);
+  const iTotal = findCol(headers, ['montant ht', 'total ht', 'montant']);
+
+  const out: object[] = [];
+  for (const row of rows.slice(1)) {
+    const date  = parseDate(row[iDate]);
+    const desc  = String(row[iDesc] ?? '').trim();
+    const qte   = parseNum(row[iQte]);
+    const prix  = parseNum(row[iPrix]);
+    const total = parseNum(row[iTotal]);
+    if (!date || !desc || !qte || !prix) continue;
+    // Ignorer les lignes pivot/totaux
+    if (!row[iDate] || typeof row[iDate] === 'string' && row[iDate].toLowerCase().includes('data')) continue;
+    out.push({ date, description: desc, quantity: qte, unitPriceEur: prix, totalEur: total ?? +(prix * qte).toFixed(2) });
+  }
+  return out;
 }
+
+// Entretiens divers
+function parseEntretiens(rows: unknown[][]): object[] {
+  if (!rows.length) return [];
+  const headers = (rows[0] as string[]).map(h => String(h ?? ''));
+  const iDate  = findCol(headers, ['date']);
+  const iImmat = findCol(headers, ['immatriculation', 'plaque', 'immat']);
+  const iType  = findCol(headers, ['entretien', 'type', 'désignation', 'description']);
+  const iPrix  = findCol(headers, ['prix', 'montant', 'coût', 'cout', 'total']);
+
+  const out: object[] = [];
+  for (const row of rows.slice(1)) {
+    const date  = parseDate(row[iDate]);
+    const immat = String(row[iImmat] ?? '').trim();
+    const type  = String(row[iType] ?? '').trim();
+    const prix  = parseNum(row[iPrix]);
+    if (!date || !immat || !type) continue;
+    out.push({ vehicleId: immat, date, type, costEur: prix ?? 0 });
+  }
+  return out;
+}
+
+// Assurances
+function parseAssurances(rows: unknown[][]): object[] {
+  if (!rows.length) return [];
+  const headers = (rows[0] as string[]).map(h => String(h ?? ''));
+  const iImmat  = findCol(headers, ['immatriculation', 'plaque', 'véhicule', 'vehicule']);
+  const iMarque = findCol(headers, ['marque', 'modèle', 'modele']);
+  const iPrime  = findCol(headers, ['prime', 'cotisation', 'montant', 'total', 'ttc']);
+  const iDebut  = findCol(headers, ['début', 'debut', 'effet', 'date début']);
+  const iFin    = findCol(headers, ['fin', 'échéance', 'echeance']);
+
+  const out: object[] = [];
+  for (const row of rows.slice(1)) {
+    const immat = String(row[iImmat] ?? '').trim();
+    if (!immat || immat.length < 5) continue;
+    const prime = parseNum(row[iPrime]);
+    if (!prime) continue;
+    out.push({
+      vehicleId: immat,
+      marque: iMarque >= 0 ? String(row[iMarque] ?? '') : '',
+      annualPremiumEur: prime,
+      startDate: iDebut >= 0 ? parseDate(row[iDebut]) : null,
+      endDate:   iFin   >= 0 ? parseDate(row[iFin])   : null,
+    });
+  }
+  return out;
+}
+
+// Location VL
+function parseLocation(rows: unknown[][]): object[] {
+  if (!rows.length) return [];
+  const headers = (rows[0] as string[]).map(h => String(h ?? ''));
+  const iDate   = findCol(headers, ['date']);
+  const iLoueur = findCol(headers, ['loueur', 'fournisseur']);
+  const iModele = findCol(headers, ['modele', 'modèle', 'véhicule']);
+  const iImmat  = findCol(headers, ['immatriculation', 'plaque']);
+  const iJrs    = findCol(headers, ['jours', 'jrs', 'durée']);
+  const iLoyer  = findCol(headers, ['loyer', 'location', 'montant']);
+  const iAssur  = findCol(headers, ['assurance']);
+
+  const out: object[] = [];
+  for (const row of rows.slice(1)) {
+    const date  = parseDate(row[iDate]);
+    const immat = String(row[iImmat] ?? '').trim();
+    const loyer = parseNum(row[iLoyer]);
+    if (!date || !loyer) continue;
+    out.push({
+      vehicleId: immat,
+      date,
+      supplier: iLoueur >= 0 ? String(row[iLoueur] ?? '') : '',
+      model:    iModele >= 0 ? String(row[iModele] ?? '') : '',
+      days:     iJrs    >= 0 ? parseNum(row[iJrs]) : null,
+      rentalEur: loyer,
+      insuranceEur: iAssur >= 0 ? parseNum(row[iAssur]) : null,
+    });
+  }
+  return out;
+}
+
+// Infractions
+function parseInfractions(rows: unknown[][]): object[] {
+  if (!rows.length) return [];
+  const headers = (rows[0] as string[]).map(h => String(h ?? ''));
+  const iDate      = findCol(headers, ['date']);
+  const iType      = findCol(headers, ['infraction', 'type', 'désignation']);
+  const iDriver    = findCol(headers, ['chauffeur', 'conducteur', 'driver']);
+  const iMontant   = findCol(headers, ['montant', 'amende', 'total']);
+  const iImpute    = findCol(headers, ['imputation', 'impute', 'société']);
+
+  const out: object[] = [];
+  for (const row of rows.slice(1)) {
+    const date    = parseDate(row[iDate]);
+    const montant = parseNum(row[iMontant]);
+    if (!date || !montant) continue;
+    out.push({
+      date,
+      type:      iType   >= 0 ? String(row[iType]   ?? '') : '',
+      driver:    iDriver >= 0 ? String(row[iDriver]  ?? '') : '',
+      amountEur: montant,
+      imputation:iImpute >= 0 ? String(row[iImpute]  ?? '') : '',
+    });
+  }
+  return out;
+}
+
+// Amortissement
+function parseAmortissement(rows: unknown[][]): object[] {
+  if (!rows.length) return [];
+  const headers = (rows[0] as string[]).map(h => String(h ?? ''));
+  const iVeh    = findCol(headers, ['vehicule', 'véhicule', 'camion']);
+  const iAchat  = findCol(headers, ['prix achat', 'valeur', 'coût', 'cout']);
+  const iDate   = findCol(headers, ['date achat', 'date']);
+  const iValNet = findCol(headers, ['valeur nette', 'vnet', 'net']);
+
+  const seen = new Set<string>();
+  const out: object[] = [];
+  for (const row of rows.slice(1)) {
+    const veh = String(row[iVeh] ?? '').trim();
+    if (!veh || seen.has(veh)) continue;
+    seen.add(veh);
+    const achat  = parseNum(row[iAchat]);
+    const valNet = iValNet >= 0 ? parseNum(row[iValNet]) : null;
+    const dateAchat = iDate >= 0 ? parseDate(row[iDate]) : null;
+    if (!achat) continue;
+    out.push({ vehicleId: veh, purchaseDate: dateAchat, purchasePriceEur: achat, netValueEur: valNet });
+  }
+  return out;
+}
+
+// ─── Sheet mapping ─────────────────────────────────────────────────────────────
+
+const SHEET_CONFIG: { keywords: string[]; label: string; endpoint: string; parser: (r: unknown[][]) => object[] }[] = [
+  { keywords: ['thank you', 'tankyou', 'carburant'],  label: 'Carburant (Tankyou)',   endpoint: '/import/fuel',          parser: parseThankyou },
+  { keywords: ['total mobility', 'total'],            label: 'Total Mobility',         endpoint: '/import/total-mobility', parser: parseTotalMobility },
+  { keywords: ['entretien', 'maintenance', 'divers'], label: 'Entretiens',             endpoint: '/import/maintenance',   parser: parseEntretiens },
+  { keywords: ['assurance'],                          label: 'Assurances',             endpoint: '/import/insurance',     parser: parseAssurances },
+  { keywords: ['location vl', 'location'],            label: 'Location VL',            endpoint: '/import/rental',        parser: parseLocation },
+  { keywords: ['infraction', 'amende'],               label: 'Infractions',            endpoint: '/import/infractions',   parser: parseInfractions },
+  { keywords: ['amortissement'],                      label: 'Amortissement',          endpoint: '/import/depreciation',  parser: parseAmortissement },
+];
+
+function matchSheet(name: string) {
+  const n = name.toLowerCase();
+  return SHEET_CONFIG.find(c => c.keywords.some(k => n.includes(k)));
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ImportPage() {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [fileName, setFileName]     = useState('');
+  const [fileName, setFileName]     = useState<string>('');
   const [sheets, setSheets]         = useState<SheetResult[]>([]);
   const [running, setRunning]       = useState(false);
   const [done, setDone]             = useState(false);
-  const [lastImport, setLastImport] = useState<string|null>(null);
+  const [lastImport, setLastImport] = useState<string | null>(null);
+
+  const { data: lastImports, refetch: refetchLastImports } = useQuery<
+    { provider: string; lastDate: string; count: number }[]
+  >({
+    queryKey: ['last-imports'],
+    queryFn: () => fuelApi.lastImports(),
+    staleTime: 60_000,
+  });
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    setFileName(file.name); setDone(false);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    setDone(false);
+
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const wb = XLSX.read(new Uint8Array(ev.target!.result as ArrayBuffer), { type:'array', cellDates:true });
-      setSheets(wb.SheetNames.map(name => {
-        const config = matchSheet(name, file.name);
-        return config
-          ? { name, label:config.label, icon:config.icon, status:'pending', message:`â ${config.destination}` }
-          : { name, label:name, icon:'âª', status:'skipped', message:'Non reconnu â ignorÃ©' };
-      }));
+      const data = new Uint8Array(ev.target!.result as ArrayBuffer);
+      const isCsv = file.name.toLowerCase().endsWith('.csv');
+      const wb = isCsv
+        ? XLSX.read(data, { type: 'array', FS: ';', cellDates: true })
+        : XLSX.read(data, { type: 'array', cellDates: true });
+
+      // Pour un CSV, le nom de feuille est le nom du fichier — on essaie aussi de matcher sur le contenu
+      const detected: SheetResult[] = wb.SheetNames.map(name => {
+        // Pour CSV Tankyou: la feuille s'appelle le nom du fichier, on force la détection
+        const fileBaseName = file.name.replace(/\.[^.]+$/, '').toLowerCase();
+        const config = matchSheet(name) || matchSheet(fileBaseName);
+        return { name, status: config ? 'pending' : 'skipped', message: config ? config.label : 'Non reconnu — ignoré' };
+      });
+      setSheets(detected);
     };
     reader.readAsArrayBuffer(file);
   };
 
   const handleImport = async () => {
     if (!fileRef.current?.files?.[0]) return;
-    setRunning(true); setDone(false);
-    const file = fileRef.current.files[0];
-    const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type:'array', cellDates:true });
+    setRunning(true);
+    setDone(false);
+
+    const file   = fileRef.current.files[0];
+    const buffer = await file.arrayBuffer();
+    const data   = new Uint8Array(buffer);
+    const isCsv  = file.name.toLowerCase().endsWith('.csv');
+    const wb     = isCsv
+      ? XLSX.read(data, { type: 'array', FS: ';', cellDates: true })
+      : XLSX.read(data, { type: 'array', cellDates: true });
+    const fileBaseName = file.name.replace(/\.[^.]+$/, '').toLowerCase();
+
     for (const sheet of sheets) {
-      if (sheet.status==='skipped') continue;
-      const config = matchSheet(sheet.name, file.name); if (!config) continue;
-      setSheets(prev=>prev.map(s=>s.name===sheet.name?{...s,status:'processing'}:s));
+      if (sheet.status === 'skipped') continue;
+      const config = matchSheet(sheet.name) || matchSheet(fileBaseName);
+      if (!config) continue;
+
+      setSheets(prev => prev.map(s => s.name === sheet.name ? { ...s, status: 'processing' } : s));
+
       try {
-        const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheet.name], { header:1, defval:null });
+        const ws   = wb.Sheets[sheet.name];
+        const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null });
         const records = config.parser(rows as unknown[][]);
-        if (!records.length) {
-          setSheets(prev=>prev.map(s=>s.name===sheet.name?{...s,status:'done',result:{source:sheet.name,inserted:0,skipped:0,errors:['Aucune ligne valide']}}:s));
+
+        if (records.length === 0) {
+          setSheets(prev => prev.map(s => s.name === sheet.name ? { ...s, status: 'done', result: { source: sheet.name, inserted: 0, skipped: 0, errors: ['Aucune ligne valide détectée'] } } : s));
           continue;
         }
+
         const res = await api.post(config.endpoint, { records });
-        setSheets(prev=>prev.map(s=>s.name===sheet.name?{...s,status:'done',result:res.data}:s));
-      } catch(err:unknown) {
+        setSheets(prev => prev.map(s => s.name === sheet.name ? { ...s, status: 'done', result: res.data } : s));
+      } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        setSheets(prev=>prev.map(s=>s.name===sheet.name?{...s,status:'error',message:msg}:s));
+        setSheets(prev => prev.map(s => s.name === sheet.name ? { ...s, status: 'error', message: msg } : s));
       }
     }
-    setRunning(false); setDone(true);
+
+    setRunning(false);
+    setDone(true);
     setLastImport(new Date().toLocaleString('fr-FR'));
+    void refetchLastImports();
   };
 
-  const { data: lastImports } = useQuery({ queryKey: ['last-imports'], queryFn: () => fuelApi.lastImports(), refetchOnWindowFocus: true });
-
-  const pendingCount = sheets.filter(s=>s.status==='pending').length;
-  const totalInserted = sheets.reduce((acc,s)=>acc+(s.result?.inserted??0),0);
+  const pendingCount = sheets.filter(s => s.status === 'pending').length;
+  const totalInserted = sheets.reduce((acc, s) => acc + (s.result?.inserted ?? 0), 0);
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-6 max-w-4xl mx-auto">
+      {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Import mensuel</h1>
-        <p className="text-gray-500 mt-1">Uploadez votre fichier Excel â les donnÃ©es sont automatiquement redirigÃ©es vers les bons onglets.</p>
-        {lastImport && <p className="text-xs text-green-600 mt-1">â Dernier import : {lastImport}</p>}
+        <p className="text-gray-500 mt-1">Uploadez votre fichier Excel de charges flotte pour mettre à jour toutes les données.</p>
+        {lastImport && <p className="text-xs text-green-600 mt-1">Dernier import : {lastImport}</p>}
       </div>
 
       {/* Derniers imports par fournisseur */}
       {lastImports && lastImports.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6">
-          <div className="px-5 py-3 bg-gray-50 border-b border-gray-100 rounded-t-xl">
-            <h3 className="text-sm font-semibold text-gray-700">Derniers imports par fournisseur</h3>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <h2 className="font-semibold text-gray-800">Derniers imports par fournisseur</h2>
           </div>
           <div className="divide-y divide-gray-50">
-            {lastImports.map((imp: { provider: string; lastDate: string; count: number }) => (
+            {lastImports.map(imp => (
               <div key={imp.provider} className="flex items-center justify-between px-5 py-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-lg">{imp.provider?.toLowerCase().includes('total') ? '🔴' : imp.provider?.toLowerCase().includes('tank') ? '🟡' : '⛽'}</span>
-                  <span className="font-medium text-gray-800 text-sm">{imp.provider}</span>
+                  <span className="text-lg">⛽</span>
+                  <span className="font-medium text-gray-800 text-sm capitalize">{imp.provider}</span>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-gray-900">{new Date(imp.lastDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
-                  <p className="text-xs text-gray-400">{imp.count.toLocaleString('fr-FR')} transactions au total</p>
+                <div className="text-right text-xs text-gray-500">
+                  <span className="font-semibold text-gray-700">
+                    {new Date(imp.lastDate).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+                  </span>
+                  <span className="ml-3 text-gray-400">{imp.count} transactions</span>
                 </div>
               </div>
             ))}
@@ -267,84 +388,20 @@ export default function ImportPage() {
         </div>
       )}
 
-            {/* Zone de dÃ©pÃ´t */}
-      <div onClick={() => fileRef.current?.click()}
-        className="border-2 border-dashed border-blue-300 rounded-2xl p-12 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all mb-6">
-        <div className="text-5xl mb-4">ð</div>
+      {/* Upload zone */}
+      <div
+        onClick={() => fileRef.current?.click()}
+        className="border-2 border-dashed border-blue-300 rounded-xl p-10 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors mb-6"
+      >
+        <div className="text-4xl mb-3">📂</div>
         {fileName
-          ? <p className="font-semibold text-blue-700 text-lg">{fileName}</p>
-          : <>
-              <p className="text-gray-600 font-medium">Cliquez ou dÃ©posez votre fichier ici</p>
-              <p className="text-gray-400 text-sm mt-2">Charges_VL_vX.xlsx Â· Fichier assureur Â· Tout format Excel</p>
-            </>}
+          ? <p className="font-semibold text-blue-700">{fileName}</p>
+          : <p className="text-gray-500">Cliquez pour sélectionner votre fichier <strong>.xlsx</strong></p>
+        }
+        <p className="text-xs text-gray-400 mt-1">Charges_VL_v4.xlsx · Thank you · Total Mobility · Entretiens · Assurances · Location · Infractions · Amortissement</p>
         <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFile} />
       </div>
 
-      {/* Feuilles dÃ©tectÃ©es */}
+      {/* Sheet detection */}
       {sheets.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
-          <div className="px-5 py-3 bg-gray-50 border-b border-gray-100">
-            <p className="text-sm font-semibold text-gray-700">
-              {pendingCount > 0 ? `${pendingCount} feuille${pendingCount>1?'s':''} prÃªte${pendingCount>1?'s':''} Ã  importer` : 'Feuilles dÃ©tectÃ©es'}
-            </p>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {sheets.map(s => (
-              <div key={s.name} className="flex items-center justify-between px-5 py-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-xl w-8 text-center">
-                    {s.status==='processing' ? 'âï¸' : s.status==='done' ? 'â' : s.status==='error' ? 'â' : s.icon}
-                  </span>
-                  <div>
-                    <p className="font-medium text-gray-800 text-sm">{s.label}</p>
-                    <p className="text-xs text-gray-400">{s.message}</p>
-                  </div>
-                </div>
-                <div className="text-right text-sm">
-                  {s.status==='pending'    && <span className="text-gray-400">En attente</span>}
-                  {s.status==='processing' && <span className="text-blue-500 animate-pulse">Importâ¦</span>}
-                  {s.status==='skipped'    && <span className="text-gray-300">â</span>}
-                  {s.status==='done' && s.result && (
-                    <span className="text-green-600 font-semibold">{s.result.inserted} lignes</span>
-                  )}
-                  {s.status==='error' && <span className="text-red-500 text-xs">{s.message}</span>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Bouton import */}
-      {pendingCount > 0 && (
-        <button onClick={handleImport} disabled={running}
-          className="w-full py-4 bg-blue-600 text-white rounded-2xl font-semibold text-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm">
-          {running ? 'âï¸ Import en coursâ¦' : `ð Importer maintenant`}
-        </button>
-      )}
-
-      {/* RÃ©sumÃ© final */}
-      {done && totalInserted > 0 && (
-        <div className="mt-4 bg-green-50 border border-green-200 rounded-2xl p-5 text-center">
-          <p className="text-green-700 font-bold text-xl">â {totalInserted} enregistrements importÃ©s</p>
-          <p className="text-green-500 text-sm mt-1">Les donnÃ©es sont disponibles dans tous les onglets</p>
-        </div>
-      )}
-
-      {/* Guide */}
-      {sheets.length === 0 && (
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          {SHEET_CONFIG.map(c => (
-            <div key={c.label} className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3">
-              <span className="text-xl">{c.icon}</span>
-              <div>
-                <p className="text-sm font-medium text-gray-700">{c.label}</p>
-                <p className="text-xs text-gray-400">{c.destination}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6"

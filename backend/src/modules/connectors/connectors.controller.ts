@@ -20,5 +20,4 @@ export class ConnectorsController {
   getWebfleetVehicles() { return this.webfleet.fetchVehicles(); }
 
   @Get('webfleet/positions')
-  getWebfleetPositions() { return this.webfleet.fetchPositions(); }
-}
+  getWebfleetPositions() { return this.webfleet.fetchPosition
