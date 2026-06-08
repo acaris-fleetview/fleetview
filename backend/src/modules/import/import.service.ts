@@ -41,7 +41,6 @@ export class ImportService {
           fuelType:     r.fuelType ?? 'Gasoil',
           provider:     r.provider ?? 'Tankyou',
           stationName:  r.stationName ?? r.location ?? null,
-          stationName:  r.location ?? null,
         } as any);
         await this.fuelRepo.save(tx);
         result.inserted++;
