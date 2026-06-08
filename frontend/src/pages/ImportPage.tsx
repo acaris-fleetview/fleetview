@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
 import api, { fuelApi } from '../services/api';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// âââ Types ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 interface ImportResult {
   source: string;
@@ -19,17 +19,17 @@ interface SheetResult {
   message?: string;
 }
 
-// ─── Sheet parsers ─────────────────────────────────────────────────────────────
+// âââ Sheet parsers âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 function normalizeStr(s: string): string {
   return s.toLowerCase()
-    .replace(/['‘’‚‛′‵]/g, "'")
-    .replace(/[éèêë]/g, 'e')
-    .replace(/[àâä]/g, 'a')
-    .replace(/[ôö]/g, 'o')
-    .replace(/[ûüù]/g, 'u')
-    .replace(/[îï]/g, 'i')
-    .replace(/[ç]/g, 'c');
+    .replace(/['âââââ²âµ]/g, "'")
+    .replace(/[Ã©Ã¨ÃªÃ«]/g, 'e')
+    .replace(/[Ã Ã¢Ã¤]/g, 'a')
+    .replace(/[Ã´Ã¶]/g, 'o')
+    .replace(/[Ã»Ã¼Ã¹]/g, 'u')
+    .replace(/[Ã®Ã¯]/g, 'i')
+    .replace(/[Ã§]/g, 'c');
 }
 
 function findCol(headers: string[], keywords: string[]): number {
@@ -84,6 +84,46 @@ function parseThankyou(rows: unknown[][]): object[] {
     if (!plaque || plaque === 'XX-XXX-XX' || !date || !prix || !vol) continue;
     if (prix > 5 || prix < 0.5 || vol < 1) continue;
     out.push({ vehicleId: plaque, transactedAt: date, volumeL: vol, unitPriceEur: prix, totalEur: total ?? +(prix * vol).toFixed(2), fuelType: fuel });
+  }
+  return out;
+}
+
+
+// Total Energies — carburant (export "Toutes-les-transactions")
+function parseTotalCarburant(rows: unknown[][]): object[] {
+  if (!rows.length) return [];
+  const headers = (rows[0] as string[]).map(h => String(h ?? '').trim());
+  const iDate    = findCol(headers, ['date']);
+  const iVeh     = findCol(headers, ['nom personnalise', 'nom personnalise', 'personnalise', 'immatriculation']);
+  const iProduit = findCol(headers, ['designation produit', 'designation', 'produit']);
+  const iQte     = findCol(headers, ['quantite', 'quantite']);
+  const iPrix    = findCol(headers, ['prix unitaire']);
+  const iHT      = findCol(headers, ['montant ht']);
+  const iTTC     = findCol(headers, ['montant ttc']);
+  const iKm      = findCol(headers, ['kilometrage', 'kilometrage']);
+  const iStation = findCol(headers, ['lieu enlevement', 'station']);
+  const EXCLUDED = ['accessoire', 'peage', 'lavage', 'boisson', 'cafe'];
+  const FUEL_PRODUCTS = ['diesel', 'gazole', 'adblue', 'lubrifiant', 'sans plomb', 'b10', 'excellium', 'sp95', 'sp98'];
+  const out: object[] = [];
+  for (const row of rows.slice(1)) {
+    const produit = normalizeStr(String(row[iProduit] ?? ''));
+    if (!produit) continue;
+    if (EXCLUDED.some(e => produit.includes(e))) continue;
+    if (!FUEL_PRODUCTS.some(f => produit.includes(f))) continue;
+    const date   = parseDate(iDate >= 0 ? row[iDate] : null);
+    const veh    = String(row[iVeh] ?? '').trim();
+    const qte    = parseNum(iQte >= 0 ? row[iQte] : null);
+    const prix   = parseNum(iPrix >= 0 ? row[iPrix] : null);
+    const ht     = parseNum(iHT >= 0 ? row[iHT] : null);
+    const ttc    = parseNum(iTTC >= 0 ? row[iTTC] : null);
+    const km     = parseNum(iKm >= 0 ? row[iKm] : null);
+    const station = iStation >= 0 ? String(row[iStation] ?? '').trim() : null;
+    if (!date || !veh || !qte || !prix) continue;
+    let fuelType = 'Gasoil';
+    if (produit.includes('adblue')) fuelType = 'AdBlue';
+    else if (produit.includes('lubrifiant')) fuelType = 'Lubrifiant';
+    else if (produit.includes('sans plomb') || produit.includes('sp')) fuelType = 'SP95';
+    out.push({ vehicleId: veh, transactedAt: date, volumeL: qte, unitPriceEur: prix, totalEur: ht ?? ttc ?? +(prix*qte).toFixed(2), fuelType, provider: 'Total', stationName: station ?? null, mileage: km ?? null });
   }
   return out;
 }
@@ -241,11 +281,12 @@ function parseAmortissement(rows: unknown[][]): object[] {
   return out;
 }
 
-// ─── Sheet mapping ─────────────────────────────────────────────────────────────
+// âââ Sheet mapping âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 const SHEET_CONFIG: { keywords: string[]; label: string; endpoint: string; parser: (r: unknown[][]) => object[] }[] = [
   { keywords: ['thank you', 'tankyou', 'carburant'],  label: 'Carburant (Tankyou)',   endpoint: '/import/fuel',           parser: parseThankyou },
-  { keywords: ['total mobility', 'total'],            label: 'Total Mobility',         endpoint: '/import/total-mobility', parser: parseTotalMobility },
+  { keywords: ['toutes-les-transactions', 'toutes les transactions', 'transactions total'], label: 'Carburant (Total)', endpoint: '/import/fuel', parser: parseTotalCarburant },
+  { keywords: ['total mobility'],            label: 'Total Mobility',         endpoint: '/import/total-mobility', parser: parseTotalMobility },
   { keywords: ['entretien', 'maintenance', 'divers'], label: 'Entretiens',             endpoint: '/import/maintenance',    parser: parseEntretiens },
   { keywords: ['assurance'],                          label: 'Assurances',             endpoint: '/import/insurance',      parser: parseAssurances },
   { keywords: ['location vl', 'location'],            label: 'Location VL',            endpoint: '/import/rental',         parser: parseLocation },
@@ -258,7 +299,7 @@ function matchSheet(name: string) {
   return SHEET_CONFIG.find(c => c.keywords.some(k => n.includes(normalizeStr(k))));
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// âââ Component ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 export default function ImportPage() {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -293,7 +334,7 @@ export default function ImportPage() {
       const fileBaseName = file.name.replace(/\.[^.]+$/, '').toLowerCase();
       const detected: SheetResult[] = wb.SheetNames.map(name => {
         const config = matchSheet(name) || matchSheet(fileBaseName);
-        return { name, status: config ? 'pending' : 'skipped', message: config ? config.label : 'Non reconnu — ignore' };
+        return { name, status: config ? 'pending' : 'skipped', message: config ? config.label : 'Non reconnu â ignore' };
       });
       setSheets(detected);
     };
@@ -447,7 +488,7 @@ export default function ImportPage() {
       {/* Summary */}
       {done && totalInserted > 0 && (
         <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-          <p className="text-green-700 font-semibold text-lg">Import termine — {totalInserted} enregistrements inseres</p>
+          <p className="text-green-700 font-semibold text-lg">Import termine â {totalInserted} enregistrements inseres</p>
           <p className="text-green-500 text-sm mt-1">Les donnees sont disponibles dans tous les onglets</p>
         </div>
       )}
@@ -457,8 +498,8 @@ export default function ImportPage() {
         <p className="font-semibold text-gray-700 mb-2">Comment utiliser</p>
         <ol className="list-decimal list-inside space-y-1">
           <li>Exportez votre fichier de charges flotte (Charges_VL_vX.xlsx)</li>
-          <li>Uploadez-le ici — les feuilles sont detectees automatiquement</li>
-          <li>Cliquez sur "Importer" — les donnees remplacent les precedentes</li>
+          <li>Uploadez-le ici â les feuilles sont detectees automatiquement</li>
+          <li>Cliquez sur "Importer" â les donnees remplacent les precedentes</li>
           <li>Verifiez les onglets Carburant, Entretien, etc.</li>
         </ol>
       </div>
