@@ -214,7 +214,7 @@ export default function TourneesPage() {
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
           <span className="text-2xl">âš ï¸</span>
           <div>
-            <p className="font-semibold text-amber-800">{anomaliesCount} anomalie{±anomaliesCount > 1 ? 's' : ''} terrain non traitÃ©e{anomaliesCount > 1 ? 's' : ''}</p>
+            <p className="font-semibold text-amber-800">{anomaliesCount} anomalie{anomaliesCount > 1 ? 's' : ''} terrain non traitÃ©e{anomaliesCount > 1 ? 's' : ''}</p>
             <p className="text-sm text-amber-600"><a href="https://console.mts-1.com/customerOrdersWarning" target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-800">Voir les anomalies sur MTS-1</a></p>
           </div>
         </div>
