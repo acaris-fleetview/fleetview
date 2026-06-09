@@ -8,8 +8,8 @@ export class ImportController {
   constructor(private readonly svc: ImportService) {}
 
   @Post('fuel')
-  importFuel(@Body() body: { records: any[] }): Promise<any> {
-    return this.svc.importFuel(body.records);
+  importFuel(@Body() body: { records: any[]; append?: boolean }): Promise<any> {
+    return this.svc.importFuel(body.records, body.append ?? false);
   }
 
   @Post('total-mobility')
