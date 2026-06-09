@@ -321,13 +321,13 @@ export default function ImportPage() {
       const data = new Uint8Array(ev.target!.result as ArrayBuffer);
       const isCsv = file.name.toLowerCase().endsWith('.csv');
       const wb = isCsv
-        ? XLSX.read(data, { type: 'array', FS: ',', cellDates: true })
+        ? XLSX.read(data, { type: 'array', FS: ',', raw: true })
         : XLSX.read(data, { type: 'array', cellDates: true });
 
       const fileBaseName = file.name.replace(/\.[^.]+$/, '').toLowerCase();
       const detected: SheetResult[] = wb.SheetNames.map(name => {
         const config = matchSheet(name) || matchSheet(fileBaseName);
-        return { name, status: config ? 'pending' : 'skipped', message: config ? config.label : 'Non reconnu ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ignore' };
+        return { name, status: config ? 'pending' : 'skipped', message: config ? config.label : 'Non reconnu ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ ignore' };
       });
       setSheets(detected);
     };
@@ -344,7 +344,7 @@ export default function ImportPage() {
     const data   = new Uint8Array(buffer);
     const isCsv  = file.name.toLowerCase().endsWith('.csv');
     const wb     = isCsv
-      ? XLSX.read(data, { type: 'array', FS: ',', cellDates: true })
+      ? XLSX.read(data, { type: 'array', FS: ',', raw: true })
       : XLSX.read(data, { type: 'array', cellDates: true });
     const fileBaseName = file.name.replace(/\.[^.]+$/, '').toLowerCase();
 
@@ -443,7 +443,7 @@ export default function ImportPage() {
                   <span className="text-lg">
                     {s.status === 'pending'    ? '&#9203;' :
                      s.status === 'processing' ? '&#9881;' :
-                     s.status === 'done'       ? 'ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ' :
+                     s.status === 'done'       ? 'ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ' :
                      s.status === 'error'      ? '&#10060;' : '&#9898;'}
                   </span>
                   <div>
@@ -481,7 +481,7 @@ export default function ImportPage() {
       {/* Summary */}
       {done && totalInserted > 0 && (
         <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-          <p className="text-green-700 font-semibold text-lg">Import termine ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ {totalInserted} enregistrements inseres</p>
+          <p className="text-green-700 font-semibold text-lg">Import termine ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ {totalInserted} enregistrements inseres</p>
           <p className="text-green-500 text-sm mt-1">Les donnees sont disponibles dans tous les onglets</p>
         </div>
       )}
@@ -491,8 +491,8 @@ export default function ImportPage() {
         <p className="font-semibold text-gray-700 mb-2">Comment utiliser</p>
         <ol className="list-decimal list-inside space-y-1">
           <li>Exportez votre fichier de charges flotte (Charges_VL_vX.xlsx)</li>
-          <li>Uploadez-le ici ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ les feuilles sont detectees automatiquement</li>
-          <li>Cliquez sur "Importer" ÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ les donnees remplacent les precedentes</li>
+          <li>Uploadez-le ici ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ les feuilles sont detectees automatiquement</li>
+          <li>Cliquez sur "Importer" ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ¢ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ les donnees remplacent les precedentes</li>
           <li>Verifiez les onglets Carburant, Entretien, etc.</li>
         </ol>
       </div>
