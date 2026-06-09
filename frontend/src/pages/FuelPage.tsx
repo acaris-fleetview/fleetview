@@ -99,7 +99,7 @@ export default function FuelPage() {
         <KpiCard title="Volume total (30j)" value={`${fmt(kpi?.totalVolumeL)} L`} icon="⛽" color="blue" />
         <KpiCard title="Prix moyen" value={`${fmt(kpi?.avgPriceEur, 3)} €/L`} icon="💶" color="green" />
         <KpiCard title="Coût total (30j)" value={`${fmt(kpi?.totalCostEur)} €`} icon="🧾" color="orange" />
-        <KpiCard title="Alertes fraude" value={String(kpi?.fraudAlertsCount ?? 0)} icon="⚠️" color="red" />
+        <KpiCard title="Alertes fraude" value={String(kpi?.openFraudAlerts ?? 0)} icon="⚠️" color="red" />
       </div>
 
       {/* Filtres */}
@@ -155,10 +155,10 @@ export default function FuelPage() {
       <div className="bg-white rounded-xl shadow p-4">
         <div className="flex gap-4 mb-4 border-b pb-2">
           <button onClick={() => setTab('transactions')} className={`px-4 py-1 rounded-full text-sm font-medium ${tab === 'transactions' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}>
-            Transactions {filteredTransactions.length > 0 && `(${filteredTransactions.length})`}
+            Transactions {filteredTransactions.length > 0 ? `(${filteredTransactions.length})` : ''}
           </button>
           <button onClick={() => setTab('fraud')} className={`px-4 py-1 rounded-full text-sm font-medium ${tab === 'fraud' ? 'bg-red-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}>
-            Alertes fraude {kpi?.fraudAlertsCount ? `(${kpi.fraudAlertsCount})` : ''}
+            Alertes fraude {kpi?.openFraudAlerts ? `(${kpi.openFraudAlerts})` : ''}
           </button>
         </div>
 
@@ -174,14 +174,14 @@ export default function FuelPage() {
             <tbody>
               {filteredTransactions.map(t => (
                 <tr key={t.id} className="border-b last:border-0 hover:bg-gray-50">
-                  <td className="py-2 text-gray-600">{fmtDate(t.date)}</td>
-                  <td>{t.vehiclePlate}</td>
-                  <td className="text-gray-600">{t.stationName}</td>
+                  <td className="py-2 text-gray-600">{fmtDate(t.transactedAt)}</td>
+                  <td>{t.vehicleId ?? '-'}</td>
+                  <td className="text-gray-600">{t.stationName ?? '-'}</td>
                   <td>{fmt(t.volumeL, 1)} L</td>
-                  <td>{fmt(t.pricePerL, 3)} €</td>
+                  <td>{fmt(t.unitPriceEur, 3)} €</td>
                   <td className="font-medium">{fmt(t.totalEur)} €</td>
                   <td className="text-gray-500 text-xs">{t.provider ?? '-'}</td>
-                  <td><span className={`px-2 py-0.5 rounded-full text-xs ${t.suspicious ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{t.suspicious ? 'Suspect' : 'OK'}</span></td>
+                  <td><span className={`px-2 py-0.5 rounded-full text-xs ${t.fraudStatus !== 'clear' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{t.fraudStatus !== 'clear' ? 'Suspect' : 'OK'}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -194,17 +194,17 @@ export default function FuelPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-gray-500 border-b">
-                <th className="pb-2">Date</th><th>Véhicule</th><th>Type</th><th>Montant</th><th>Gravité</th>
+                <th className="pb-2">Transaction</th><th>Type</th><th>Score</th><th>Description</th><th>Statut</th>
               </tr>
             </thead>
             <tbody>
               {fraudAlerts.map(a => (
                 <tr key={a.id} className="border-b last:border-0 hover:bg-gray-50">
-                  <td className="py-2 text-gray-600">{fmtDate(a.date)}</td>
-                  <td>{a.vehiclePlate}</td>
-                  <td>{a.type}</td>
-                  <td>{fmt(a.amountEur)} €</td>
-                  <td><span className={`px-2 py-0.5 rounded-full text-xs ${a.severity === 'high' ? 'bg-red-100 text-red-700' : a.severity === 'medium' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>{a.severity}</span></td>
+                  <td className="py-2 text-gray-600 text-xs">{a.transactionId}</td>
+                  <td>{a.alertType}</td>
+                  <td><span className={`px-2 py-0.5 rounded-full text-xs ${a.riskScore >= 80 ? 'bg-red-100 text-red-700' : a.riskScore >= 50 ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>{a.riskScore}</span></td>
+                  <td className="text-gray-600 text-xs max-w-xs truncate">{a.description}</td>
+                  <td><span className={`px-2 py-0.5 rounded-full text-xs ${a.status === 'open' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>{a.status}</span></td>
                 </tr>
               ))}
             </tbody>
