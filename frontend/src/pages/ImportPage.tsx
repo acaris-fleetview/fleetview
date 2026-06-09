@@ -365,7 +365,18 @@ export default function ImportPage() {
           continue;
         }
 
-        const res = await api.post(config.endpoint, { records });
+        // Chunks de 200 pour eviter 413
+        const CHUNK_SIZE = 200;
+        let merged: ImportResult = { source: sheet.name, inserted: 0, skipped: 0, errors: [] };
+        for (let ci = 0; ci < (records as any[]).length; ci += CHUNK_SIZE) {
+          const chunk = (records as any[]).slice(ci, ci + CHUNK_SIZE);
+          const payload = ci === 0 ? { records: chunk } : { records: chunk, append: true };
+          const r = await api.post(config.endpoint, payload);
+          merged.inserted += r.data.inserted ?? 0;
+          merged.skipped  += r.data.skipped  ?? 0;
+          merged.errors    = merged.errors.concat(r.data.errors ?? []);
+        }
+        const res = { data: merged };
         setSheets(prev => prev.map(s => s.name === sheet.name ? { ...s, status: 'done', result: res.data } : s));
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
