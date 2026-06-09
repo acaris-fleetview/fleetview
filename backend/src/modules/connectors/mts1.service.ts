@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 
@@ -17,6 +17,9 @@ export class Mts1Service {
 
   private async query<T>(gql: string, variables: Record<string, unknown> = {}): Promise<T> {
     const token = this.getToken();
+    if (!token) {
+      throw new HttpException('MTS1_API_TOKEN non configure', HttpStatus.BAD_GATEWAY);
+    }
     const { data } = await firstValueFrom(
       this.http.post<{ data: T; errors?: unknown[] }>(
         MTS1_API_URL,
@@ -31,6 +34,10 @@ export class Mts1Service {
     );
     if (data.errors?.length) {
       this.logger.error('MTS-1 GraphQL errors', JSON.stringify(data.errors));
+      throw new HttpException(
+        `MTS-1 GraphQL error: ${JSON.stringify(data.errors)}`,
+        HttpStatus.BAD_GATEWAY,
+      );
     }
     return data.data;
   }
@@ -44,13 +51,8 @@ export class Mts1Service {
         }
       }
     `;
-    try {
-      const result = await this.query<{ rounds: unknown[] }>(gql, { shipperId: MTS1_SHIPPER_ID, date: targetDate });
-      return result?.rounds ?? [];
-    } catch (err) {
-      this.logger.error('fetchRounds error', err?.message);
-      return [];
-    }
+    const result = await this.query<{ rounds: unknown[] }>(gql, { shipperId: MTS1_SHIPPER_ID, date: targetDate });
+    return result?.rounds ?? [];
   }
 
   async fetchMonthlyKm(month?: string): Promise<{ totalKm: number; roundCount: number }> {
