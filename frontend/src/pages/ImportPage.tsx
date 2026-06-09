@@ -280,7 +280,7 @@ function parseAmortissement(rows: unknown[][]): object[] {
 // --- Sheet mapping -------------------------------------------------------------
 
 const SHEET_CONFIG: { keywords: string[]; label: string; endpoint: string; parser: (r: unknown[][]) => object[] }[] = [
-  { keywords: ['thank you', 'tankyou', 'carburant'],  label: 'Carburant (Tankyou)',   endpoint: '/import/fuel',           parser: parseThankyou },
+  { keywords: ['thank you', 'tankyou', 'tank you', 'carburant'],  label: 'Carburant (Tankyou)',   endpoint: '/import/fuel',           parser: parseThankyou },
   { keywords: ['toutes-les-transactions', 'toutes les transactions', 'transactions total'], label: 'Carburant (Total)', endpoint: '/import/fuel', parser: parseTotalCarburant },
   { keywords: ['total mobility'],            label: 'Total Mobility',         endpoint: '/import/total-mobility', parser: parseTotalMobility },
   { keywords: ['entretien', 'maintenance', 'divers'], label: 'Entretiens',             endpoint: '/import/maintenance',    parser: parseEntretiens },
@@ -330,7 +330,7 @@ export default function ImportPage() {
       const fileBaseName = file.name.replace(/\.[^.]+$/, '').toLowerCase();
       const detected: SheetResult[] = wb.SheetNames.map(name => {
         const config = matchSheet(name) || matchSheet(fileBaseName);
-        return { name, status: config ? 'pending' : 'skipped', message: config ? config.label : 'Non reconnu â ignore' };
+        return { name, status: config ? 'pending' : 'skipped', message: config ? config.label : 'Non reconnu Ã¢ÂÂ ignore' };
       });
       setSheets(detected);
     };
@@ -446,7 +446,7 @@ export default function ImportPage() {
                   <span className="text-lg">
                     {s.status === 'pending'    ? '&#9203;' :
                      s.status === 'processing' ? '&#9881;' :
-                     s.status === 'done'       ? 'â' :
+                     s.status === 'done'       ? 'Ã¢ÂÂ' :
                      s.status === 'error'      ? '&#10060;' : '&#9898;'}
                   </span>
                   <div>
@@ -484,7 +484,7 @@ export default function ImportPage() {
       {/* Summary */}
       {done && totalInserted > 0 && (
         <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-          <p className="text-green-700 font-semibold text-lg">Import termine â {totalInserted} enregistrements inseres</p>
+          <p className="text-green-700 font-semibold text-lg">Import termine Ã¢ÂÂ {totalInserted} enregistrements inseres</p>
           <p className="text-green-500 text-sm mt-1">Les donnees sont disponibles dans tous les onglets</p>
         </div>
       )}
@@ -494,8 +494,8 @@ export default function ImportPage() {
         <p className="font-semibold text-gray-700 mb-2">Comment utiliser</p>
         <ol className="list-decimal list-inside space-y-1">
           <li>Exportez votre fichier de charges flotte (Charges_VL_vX.xlsx)</li>
-          <li>Uploadez-le ici â les feuilles sont detectees automatiquement</li>
-          <li>Cliquez sur "Importer" â les donnees remplacent les precedentes</li>
+          <li>Uploadez-le ici Ã¢ÂÂ les feuilles sont detectees automatiquement</li>
+          <li>Cliquez sur "Importer" Ã¢ÂÂ les donnees remplacent les precedentes</li>
           <li>Verifiez les onglets Carburant, Entretien, etc.</li>
         </ol>
       </div>
