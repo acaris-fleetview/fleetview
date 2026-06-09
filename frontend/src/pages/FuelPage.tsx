@@ -1,173 +1,308 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fuelApi } from '../services/api';
-import { FuelTransaction, FraudAlert } from '../types';
-import KpiCard from '../components/common/KpiCard';
+import { Fuel, TrendingUp, DollarSign, AlertTriangle } from 'lucide-react';
+import { fuelApi } from '../api/fuelApi';
+import type { FuelTransaction } from '../types/fuel';
 
-const fmt = (n?: number, dec = 0) => n != null ? n.toLocaleString('fr-FR', { maximumFractionDigits: dec }) : '-';
-const fmtDate = (s?: string) => s ? new Date(s).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-';
+type PeriodFilter = '7d' | '30d' | '90d' | 'all';
+type SourceFilter = 'all' | 'tankyou' | 'total';
 
-type Period = 'week' | 'month' | 'year' | 'all' | 'custom';
+function matchesSource(provider: string | undefined, source: SourceFilter): boolean {
+  if (source === 'all') return true;
+  const p = (provider || '').toLowerCase();
+  if (source === 'tankyou') return p.includes('tank') || p.includes('tankyou') || p.includes('tank you');
+  if (source === 'total') return p.includes('total');
+  return true;
+}
 
-function getPeriodDates(period: Period, customFrom: string, customTo: string): { from?: string; to?: string; days: number } {
-  const now = new Date();
-  const to = now.toISOString().split('T')[0];
-  if (period === 'week')   { const f = new Date(now); f.setDate(f.getDate()-7);        return { from: f.toISOString().split('T')[0], to, days: 7 }; }
-  if (period === 'month')  { const f = new Date(now); f.setMonth(f.getMonth()-1);       return { from: f.toISOString().split('T')[0], to, days: 30 }; }
-  if (period === 'year')   { const f = new Date(now); f.setFullYear(f.getFullYear()-1); return { from: f.toISOString().split('T')[0], to, days: 365 }; }
-  if (period === 'custom') { return { from: customFrom || undefined, to: customTo || undefined, days: 0 }; }
-  return { from: undefined, to: undefined, days: 0 };
+function getPeriodDays(period: PeriodFilter): number | null {
+  switch (period) {
+    case '7d': return 7;
+    case '30d': return 30;
+    case '90d': return 90;
+    default: return null;
+  }
 }
 
 export default function FuelPage() {
-  const [tab, setTab] = useState<'transactions' | 'fraud'>('transactions');
-  const [period, setPeriod] = useState<Period>('month');
-  const [customFrom, setCustomFrom] = useState('');
-  const [customTo, setCustomTo] = useState('');
-  const [vehicleFilter, setVehicleFilter] = useState('');
+  const [vehicleFilter, setVehicleFilter] = useState<string>('all');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('30d');
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+  const [activeTab, setActiveTab] = useState<'transactions' | 'fraud'>('transactions');
 
-  const { from, to, days } = useMemo(() => getPeriodDates(period, customFrom, customTo), [period, customFrom, customTo]);
-
-  const { data: kpi } = useQuery({
-    queryKey: ['fuel-kpi', days],
-    queryFn: () => fuelApi.kpi(days || 9999),
-    retry: false,
+  const { data: transactions = [], isLoading, error } = useQuery({
+    queryKey: ['fuel-transactions'],
+    queryFn: () => fuelApi.getTransactions(),
   });
 
-  const { data: allTransactions = [], isLoading: loadingTx } = useQuery<FuelTransaction[]>({
-    queryKey: ['fuel-transactions', from, to],
-    queryFn: () => fuelApi.transactions(from, to),
-    retry: false,
-  });
+  const vehicles = useMemo(() => {
+    const set = new Set(transactions.map((t: FuelTransaction) => t.vehicleId || t.licensePlate || ''));
+    return Array.from(set).filter(Boolean).sort();
+  }, [transactions]);
 
-  const { data: fraudAlerts = [], isLoading: loadingFraud } = useQuery<FraudAlert[]>({
-    queryKey: ['fraud-alerts'],
-    queryFn: () => fuelApi.fraudAlerts(),
-    retry: false,
-  });
+  const filteredTransactions = useMemo(() => {
+    const days = getPeriodDays(periodFilter);
+    const cutoff = days ? new Date(Date.now() - days * 86400000) : null;
 
-  const transactions = useMemo(() => {
-    if (!vehicleFilter.trim()) return allTransactions;
-    const f = vehicleFilter.trim().toLowerCase();
-    return allTransactions.filter(t => (t.vehicleId || '').toLowerCase().includes(f));
-  }, [allTransactions, vehicleFilter]);
+    return transactions.filter((t: FuelTransaction) => {
+      if (vehicleFilter !== 'all' && t.vehicleId !== vehicleFilter && t.licensePlate !== vehicleFilter) return false;
+      if (cutoff && new Date(t.date) < cutoff) return false;
+      if (!matchesSource(t.provider, sourceFilter)) return false;
+      return true;
+    });
+  }, [transactions, vehicleFilter, periodFilter, sourceFilter]);
 
-  const periodLabel: Record<Period, string> = {
-    week: '7j', month: '30j', year: '365j', all: 'Tout', custom: 'Perso'
-  };
+  const fraudTransactions = useMemo(() => {
+    return filteredTransactions.filter((t: FuelTransaction) => t.isFraud || t.fraudFlag);
+  }, [filteredTransactions]);
+
+  const kpis = useMemo(() => {
+    const volume = filteredTransactions.reduce((sum: number, t: FuelTransaction) => sum + (t.volume || 0), 0);
+    const cost = filteredTransactions.reduce((sum: number, t: FuelTransaction) => sum + (t.amount || 0), 0);
+    const avgPrice = volume > 0 ? cost / volume : 0;
+    return { volume, cost, avgPrice, count: filteredTransactions.length };
+  }, [filteredTransactions]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+          Erreur lors du chargement des données carburant.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-2xl font-bold text-gray-900">Carburant</h2>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <Fuel className="w-6 h-6 text-blue-600" />
+          Carburant
+        </h1>
+      </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {(['week','month','year','all','custom'] as Period[]).map(p => (
-            <button key={p} onClick={() => setPeriod(p)}
-              className={'px-3 py-1 rounded-full text-xs font-medium border transition-colors ' + (period === p ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400')}>
-              {p === 'week' ? 'Semaine' : p === 'month' ? 'Mois' : p === 'year' ? 'Année' : p === 'all' ? 'Tout' : 'Dates'}
-            </button>
-          ))}
-          {period === 'custom' && (
-            <div className="flex items-center gap-1">
-              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
-                className="border border-gray-300 rounded px-2 py-1 text-xs" />
-              <span className="text-gray-400 text-xs">→</span>
-              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
-                className="border border-gray-300 rounded px-2 py-1 text-xs" />
+      {/* Filters */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 space-y-3">
+        {/* Row 1: Vehicle + Period */}
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600">Véhicule :</span>
+            <select
+              value={vehicleFilter}
+              onChange={e => setVehicleFilter(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">Tous</option>
+              {vehicles.map(v => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600">Période :</span>
+            <div className="flex gap-1">
+              {(['7d', '30d', '90d', 'all'] as PeriodFilter[]).map(p => (
+                <button
+                  key={p}
+                  onClick={() => setPeriodFilter(p)}
+                  className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
+                    periodFilter === p
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {p === '7d' ? '7 jours' : p === '30d' ? '30 jours' : p === '90d' ? '90 jours' : 'Tout'}
+                </button>
+              ))}
             </div>
-          )}
+          </div>
+        </div>
+
+        {/* Row 2: Source filter */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-gray-600">Source :</span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setSourceFilter('all')}
+              className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
+                sourceFilter === 'all'
+                  ? 'bg-gray-700 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Tous
+            </button>
+            <button
+              onClick={() => setSourceFilter('tankyou')}
+              className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
+                sourceFilter === 'tankyou'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+              }`}
+            >
+              Tank You
+            </button>
+            <button
+              onClick={() => setSourceFilter('total')}
+              className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
+                sourceFilter === 'total'
+                  ? 'bg-red-600 text-white'
+                  : 'bg-red-50 text-red-700 hover:bg-red-100'
+              }`}
+            >
+              Total
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard title={'Volume (' + periodLabel[period] + ')'} value={fmt(kpi?.totalVolumeL, 1) + ' L'} icon="⛽" color="blue" />
-        <KpiCard title="Prix moyen" value={fmt(kpi?.avgPriceEur, 3) + ' €/L'} icon="💶" color="green" />
-        <KpiCard title={'Coût (' + periodLabel[period] + ')'} value={fmt(kpi?.totalCostEur) + ' €'} icon="🧾" color="orange" />
-        <KpiCard title="Alertes fraude" value={String(kpi?.openFraudAlerts ?? kpi?.fraudAlertsCount ?? 0)} icon="⚠️" color="red" />
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Fuel className="w-4 h-4 text-blue-500" />
+            <span className="text-sm text-gray-500">Volume</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900">{kpis.volume.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} L</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <DollarSign className="w-4 h-4 text-green-500" />
+            <span className="text-sm text-gray-500">Coût total</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900">{kpis.cost.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp className="w-4 h-4 text-purple-500" />
+            <span className="text-sm text-gray-500">Prix moyen</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900">{kpis.avgPrice.toLocaleString('fr-FR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} €/L</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-4 h-4 text-orange-500" />
+            <span className="text-sm text-gray-500">Transactions</span>
+          </div>
+          <p className="text-2xl font-bold text-gray-900">{kpis.count}</p>
+        </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow p-4">
-        <div className="flex items-center justify-between mb-4 border-b pb-2 flex-wrap gap-2">
-          <div className="flex gap-3">
-            <button onClick={() => setTab('transactions')}
-              className={'px-4 py-1 rounded-full text-sm font-medium ' + (tab === 'transactions' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-700')}>
-              Transactions ({transactions.length})
-            </button>
-            <button onClick={() => setTab('fraud')}
-              className={'px-4 py-1 rounded-full text-sm font-medium ' + (tab === 'fraud' ? 'bg-red-600 text-white' : 'text-gray-500 hover:text-gray-700')}>
-              Alertes fraude
-            </button>
-          </div>
-          {tab === 'transactions' && (
-            <input type="text" placeholder="Filtrer par véhicule..." value={vehicleFilter} onChange={e => setVehicleFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-1 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-300" />
-          )}
+      {/* Tabs */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="flex border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('transactions')}
+            className={`px-6 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'transactions'
+                ? 'border-b-2 border-blue-600 text-blue-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Transactions ({filteredTransactions.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('fraud')}
+            className={`px-6 py-3 text-sm font-medium transition-colors flex items-center gap-1 ${
+              activeTab === 'fraud'
+                ? 'border-b-2 border-red-600 text-red-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5" />
+            Fraudes ({fraudTransactions.length})
+          </button>
         </div>
 
-        {tab === 'transactions' && (
-          loadingTx ? <p className="text-gray-400 text-sm">Chargement...</p> :
-          transactions.length === 0 ? <p className="text-gray-400 text-sm italic">Aucune transaction sur cette période.</p> :
-          <div className="overflow-x-auto">
+        <div className="overflow-x-auto">
+          {activeTab === 'transactions' && (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 border-b text-xs uppercase tracking-wide">
-                  <th className="pb-2 pr-4">Date</th>
-                  <th className="pb-2 pr-4">Véhicule</th>
-                  <th className="pb-2 pr-4">Fournisseur</th>
-                  <th className="pb-2 pr-4">Station</th>
-                  <th className="pb-2 pr-4 text-right">Volume</th>
-                  <th className="pb-2 pr-4 text-right">Prix/L</th>
-                  <th className="pb-2 pr-4 text-right">Total</th>
-                  <th className="pb-2">Statut</th>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Véhicule</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Source</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Station</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Volume (L)</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Montant (€)</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Prix/L (€)</th>
                 </tr>
               </thead>
               <tbody>
-                {transactions.map(t => (
-                  <tr key={t.id} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="py-2 pr-4 text-gray-600 whitespace-nowrap">{fmtDate(t.transactedAt)}</td>
-                    <td className="pr-4 font-medium">{t.vehicleId || '-'}</td>
-                    <td className="pr-4 text-gray-500">{t.provider || '-'}</td>
-                    <td className="pr-4 text-gray-500">{t.stationName || '-'}</td>
-                    <td className="pr-4 text-right">{fmt(Number(t.volumeL), 1)} L</td>
-                    <td className="pr-4 text-right">{fmt(Number(t.unitPriceEur), 3)} €</td>
-                    <td className="pr-4 text-right font-medium">{fmt(Number(t.totalEur))} €</td>
-                    <td><span className={'px-2 py-0.5 rounded-full text-xs ' + (t.fraudStatus === 'clear' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>{t.fraudStatus === 'clear' ? 'Normal' : 'Suspect'}</span></td>
+                {filteredTransactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-8 text-gray-400">Aucune transaction</td>
                   </tr>
-                ))}
+                ) : (
+                  filteredTransactions.map((t: FuelTransaction, i: number) => (
+                    <tr key={t.id || i} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="px-4 py-2.5 text-gray-700">{new Date(t.date).toLocaleDateString('fr-FR')}</td>
+                      <td className="px-4 py-2.5 font-medium text-gray-900">{t.licensePlate || t.vehicleId || '—'}</td>
+                      <td className="px-4 py-2.5">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                          matchesSource(t.provider, 'tankyou') && !matchesSource(t.provider, 'total')
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : matchesSource(t.provider, 'total') && !matchesSource(t.provider, 'tankyou')
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {t.provider || '—'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-600">{t.station || t.location || '—'}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-700">{(t.volume || 0).toLocaleString('fr-FR', { maximumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-2.5 text-right font-medium text-gray-900">{(t.amount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-600">
+                        {t.volume && t.amount ? (t.amount / t.volume).toLocaleString('fr-FR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '—'}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
-          </div>
-        )}
+          )}
 
-        {tab === 'fraud' && (
-          loadingFraud ? <p className="text-gray-400 text-sm">Chargement...</p> :
-          fraudAlerts.length === 0 ? <p className="text-gray-400 text-sm italic">Aucune alerte fraude détectée.</p> :
-          <div className="overflow-x-auto">
+          {activeTab === 'fraud' && (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-gray-500 border-b text-xs uppercase">
-                  <th className="pb-2 pr-4">Date</th>
-                  <th className="pb-2 pr-4">Type</th>
-                  <th className="pb-2 pr-4">Description</th>
-                  <th className="pb-2 pr-4 text-right">Score risque</th>
-                  <th className="pb-2">Statut</th>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Véhicule</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Source</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-600">Motif</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-600">Montant (€)</th>
                 </tr>
               </thead>
               <tbody>
-                {fraudAlerts.map(a => (
-                  <tr key={a.id} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="py-2 pr-4 text-gray-600 whitespace-nowrap">{fmtDate(a.createdAt)}</td>
-                    <td className="pr-4">{a.alertType}</td>
-                    <td className="pr-4 text-gray-500">{a.description}</td>
-                    <td className="pr-4 text-right font-medium">{a.riskScore}</td>
-                    <td><span className={'px-2 py-0.5 rounded-full text-xs ' + (a.status === 'open' ? 'bg-red-100 text-red-700' : a.status === 'acknowledged' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600')}>{a.status}</span></td>
+                {fraudTransactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-center py-8 text-gray-400">Aucune fraude détectée</td>
                   </tr>
-                ))}
+                ) : (
+                  fraudTransactions.map((t: FuelTransaction, i: number) => (
+                    <tr key={t.id || i} className="border-b border-gray-100 hover:bg-red-50">
+                      <td className="px-4 py-2.5 text-gray-700">{new Date(t.date).toLocaleDateString('fr-FR')}</td>
+                      <td className="px-4 py-2.5 font-medium text-gray-900">{t.licensePlate || t.vehicleId || '—'}</td>
+                      <td className="px-4 py-2.5 text-gray-600">{t.provider || '—'}</td>
+                      <td className="px-4 py-2.5 text-red-600">{t.fraudReason || 'Fraude détectée'}</td>
+                      <td className="px-4 py-2.5 text-right font-medium text-red-700">{(t.amount || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
