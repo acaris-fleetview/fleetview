@@ -59,37 +59,27 @@ function parseNum(val: unknown): number | null {
 function parseThankyou(rows: unknown[][]): object[] {
   if (!rows.length) return [];
   const headers = (rows[0] as string[]).map(h => String(h ?? '').trim());
-  const iPlaque  = findCol(headers, ["plaque d'immatriculation", 'immatriculation', 'plaque', 'vehicle']);
+  // Nouveau format Tankyou (CSV virgule): colonnes détectées par nom
+  const iPlaque  = findCol(headers, ["plaque d'immatriculation", 'immatriculation', 'plaque']);
   const iDate    = findCol(headers, ['date de livraison', 'livraison']);
-  const iPrix    = findCol(headers, ['prix unitaire / au litre', 'prix unitaire', 'unit', 'prix/litre', 'litre']);
-  const iVol     = findCol(headers, ['quantite', 'volume', 'qt']);
-  const iTotal   = findCol(headers, ['total ht', 'montant ht', 'total']);
-  const iProduit = findCol(headers, ['produit / service', 'produit', 'service', 'designation']);
-  const iFuel    = findCol(headers, ['type de carburant', 'carburant', 'fuel']);
+  const iPrix    = findCol(headers, ['prix au litre', 'prix unitaire', 'prix/litre']);
+  const iVol     = findCol(headers, ['quantite delivree', 'quantite', 'volume', 'qt']);
+  const iFuel    = findCol(headers, ['carburant', 'type de carburant', 'fuel']);
 
   const out: object[] = [];
-  let _dbg = {frais:0, plaque:0, date:0, prix:0, vol:0, prixRange:0, ok:0};
   for (const row of rows.slice(1)) {
-    const produit = String(row[iProduit] ?? '').toLowerCase();
-    if (produit.includes('frais')) { _dbg.frais++; continue; }
     const plaque = String(row[iPlaque] ?? '').trim();
-    const date   = parseDate(iDate >= 0 ? row[iDate] : row[3]);
-    const prix   = parseNum(row[iPrix]);
-    const vol    = parseNum(row[iVol]);
-    const total  = parseNum(row[iTotal]);
-    const fuel   = iFuel >= 0 ? String(row[iFuel] ?? '').trim() || 'Gasoil' : 'Gasoil';
-    if (!plaque || plaque === 'XX-XXX-XX') { _dbg.plaque++; continue; }
-    if (!date) { _dbg.date++; continue; }
-    if (!prix || !vol) { _dbg.prix++; continue; }
-    if (prix > 5 || prix < 0.5 || vol < 1) { _dbg.prixRange++; console.log('PRIX_RANGE skip: prix='+prix+' vol='+vol+' plaque='+plaque); continue; }
-    _dbg.ok++;
-    out.push({ vehicleId: plaque, transactedAt: date, volumeL: vol, unitPriceEur: prix, totalEur: total ?? +(prix * vol).toFixed(2), fuelType: fuel });
+    if (!plaque || plaque === 'XX-XXX-XX') continue;
+    const date = parseDate(iDate >= 0 ? row[iDate] : null);
+    if (!date) continue;
+    const prix = parseNum(row[iPrix]);
+    const vol  = parseNum(row[iVol]);
+    if (!prix || !vol || vol < 1 || prix < 0.5 || prix > 5) continue;
+    const fuel = iFuel >= 0 ? String(row[iFuel] ?? '').trim() || 'Gasoil' : 'Gasoil';
+    out.push({ vehicleId: plaque, transactedAt: date, volumeL: vol, unitPriceEur: prix, totalEur: +(prix * vol).toFixed(2), fuelType: fuel });
   }
-  console.log('parseThankyou debug:', JSON.stringify(_dbg), 'iPlaque='+iPlaque, 'iDate='+iDate, 'iPrix='+iPrix, 'iVol='+iVol, 'headers0='+JSON.stringify(rows[0]?.slice(0,12)));
   return out;
 }
-
-
 // Total Energies - carburant (export "Toutes-les-transactions")
 function parseTotalCarburant(rows: unknown[][]): object[] {
   if (!rows.length) return [];
@@ -329,13 +319,13 @@ export default function ImportPage() {
       const data = new Uint8Array(ev.target!.result as ArrayBuffer);
       const isCsv = file.name.toLowerCase().endsWith('.csv');
       const wb = isCsv
-        ? XLSX.read(data, { type: 'array', FS: ';', cellDates: true })
+        ? XLSX.read(data, { type: 'array', FS: ',', cellDates: true })
         : XLSX.read(data, { type: 'array', cellDates: true });
 
       const fileBaseName = file.name.replace(/\.[^.]+$/, '').toLowerCase();
       const detected: SheetResult[] = wb.SheetNames.map(name => {
         const config = matchSheet(name) || matchSheet(fileBaseName);
-        return { name, status: config ? 'pending' : 'skipped', message: config ? config.label : 'Non reconnu ÃÂ¢ÃÂÃÂ ignore' };
+        return { name, status: config ? 'pending' : 'skipped', message: config ? config.label : 'Non reconnu ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ ignore' };
       });
       setSheets(detected);
     };
@@ -352,7 +342,7 @@ export default function ImportPage() {
     const data   = new Uint8Array(buffer);
     const isCsv  = file.name.toLowerCase().endsWith('.csv');
     const wb     = isCsv
-      ? XLSX.read(data, { type: 'array', FS: ';', cellDates: true })
+      ? XLSX.read(data, { type: 'array', FS: ',', cellDates: true })
       : XLSX.read(data, { type: 'array', cellDates: true });
     const fileBaseName = file.name.replace(/\.[^.]+$/, '').toLowerCase();
 
@@ -451,7 +441,7 @@ export default function ImportPage() {
                   <span className="text-lg">
                     {s.status === 'pending'    ? '&#9203;' :
                      s.status === 'processing' ? '&#9881;' :
-                     s.status === 'done'       ? 'ÃÂ¢ÃÂÃÂ' :
+                     s.status === 'done'       ? 'ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ' :
                      s.status === 'error'      ? '&#10060;' : '&#9898;'}
                   </span>
                   <div>
@@ -489,7 +479,7 @@ export default function ImportPage() {
       {/* Summary */}
       {done && totalInserted > 0 && (
         <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-          <p className="text-green-700 font-semibold text-lg">Import termine ÃÂ¢ÃÂÃÂ {totalInserted} enregistrements inseres</p>
+          <p className="text-green-700 font-semibold text-lg">Import termine ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ {totalInserted} enregistrements inseres</p>
           <p className="text-green-500 text-sm mt-1">Les donnees sont disponibles dans tous les onglets</p>
         </div>
       )}
@@ -499,8 +489,8 @@ export default function ImportPage() {
         <p className="font-semibold text-gray-700 mb-2">Comment utiliser</p>
         <ol className="list-decimal list-inside space-y-1">
           <li>Exportez votre fichier de charges flotte (Charges_VL_vX.xlsx)</li>
-          <li>Uploadez-le ici ÃÂ¢ÃÂÃÂ les feuilles sont detectees automatiquement</li>
-          <li>Cliquez sur "Importer" ÃÂ¢ÃÂÃÂ les donnees remplacent les precedentes</li>
+          <li>Uploadez-le ici ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ les feuilles sont detectees automatiquement</li>
+          <li>Cliquez sur "Importer" ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ les donnees remplacent les precedentes</li>
           <li>Verifiez les onglets Carburant, Entretien, etc.</li>
         </ol>
       </div>
