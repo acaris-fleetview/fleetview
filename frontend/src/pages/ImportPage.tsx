@@ -327,7 +327,7 @@ export default function ImportPage() {
       const fileBaseName = file.name.replace(/\.[^.]+$/, '').toLowerCase();
       const detected: SheetResult[] = wb.SheetNames.map(name => {
         const config = matchSheet(name) || matchSheet(fileBaseName);
-        return { name, status: config ? 'pending' : 'skipped', message: config ? config.label : 'Non reconnu →→ ignore' };
+        return { name, status: config ? 'pending' : 'skipped', message: config ? config.label : 'Non reconnu  ignore' };
       });
       setSheets(detected);
     };
@@ -401,7 +401,7 @@ export default function ImportPage() {
             {lastImports.map(imp => (
               <div key={imp.provider} className="flex items-center justify-between px-5 py-3">
                 <div className="flex items-center gap-3">
-                  <span className="text-lg">⛽</span>
+                  <span className="text-lg"></span>
                   <span className="font-medium text-gray-800 text-sm capitalize">{imp.provider}</span>
                 </div>
                 <div className="text-right text-xs text-gray-500">
@@ -421,7 +421,7 @@ export default function ImportPage() {
         onClick={() => fileRef.current?.click()}
         className="border-2 border-dashed border-blue-300 rounded-xl p-10 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors mb-6"
       >
-        <div className="text-4xl mb-3">📂</div>
+        <div className="text-4xl mb-3"></div>
         {fileName
           ? <p className="font-semibold text-blue-700">{fileName}</p>
           : <p className="text-gray-500">Cliquez pour selectionner votre fichier <strong>.xlsx</strong></p>
@@ -441,10 +441,10 @@ export default function ImportPage() {
               <div key={s.name} className="flex items-center justify-between px-5 py-3">
                 <div className="flex items-center gap-3">
                   <span className="text-lg">
-                    {s.status === 'pending'    ? '⏳' :
-                     s.status === 'processing' ? '⚙️' :
-                     s.status === 'done'       ? '→→' :
-                     s.status === 'error'      ? '❌' : '⚪'}
+                    {s.status === 'pending'    ? '' :
+                     s.status === 'processing' ? '' :
+                     s.status === 'done'       ? '' :
+                     s.status === 'error'      ? '' : ''}
                   </span>
                   <div>
                     <p className="font-medium text-gray-800 text-sm">{s.name}</p>
@@ -481,7 +481,7 @@ export default function ImportPage() {
       {/* Summary */}
       {done && totalInserted > 0 && (
         <div className="mt-4 bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-          <p className="text-green-700 font-semibold text-lg">Import termine →→ {totalInserted} enregistrements inseres</p>
+          <p className="text-green-700 font-semibold text-lg">Import termine  {totalInserted} enregistrements inseres</p>
           <p className="text-green-500 text-sm mt-1">Les donnees sont disponibles dans tous les onglets</p>
         </div>
       )}
@@ -491,8 +491,8 @@ export default function ImportPage() {
         <p className="font-semibold text-gray-700 mb-2">Comment utiliser</p>
         <ol className="list-decimal list-inside space-y-1">
           <li>Exportez votre fichier de charges flotte (Charges_VL_vX.xlsx)</li>
-          <li>Uploadez-le ici →→ les feuilles sont detectees automatiquement</li>
-          <li>Cliquez sur "Importer" →→ les donnees remplacent les precedentes</li>
+          <li>Uploadez-le ici  les feuilles sont detectees automatiquement</li>
+          <li>Cliquez sur "Importer"  les donnees remplacent les precedentes</li>
           <li>Verifiez les onglets Carburant, Entretien, etc.</li>
         </ol>
       </div>
