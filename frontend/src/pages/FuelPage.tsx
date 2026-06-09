@@ -19,18 +19,9 @@ function getPeriodDates(period: Period, customFrom?: string, customTo?: string) 
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   const iso = (d: Date) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-  if (period === 'week') {
-    const f = new Date(now); f.setDate(now.getDate() - 7);
-    return { from: iso(f), to: iso(now) };
-  }
-  if (period === 'month') {
-    const f = new Date(now); f.setMonth(now.getMonth() - 1);
-    return { from: iso(f), to: iso(now) };
-  }
-  if (period === 'year') {
-    const f = new Date(now); f.setFullYear(now.getFullYear() - 1);
-    return { from: iso(f), to: iso(now) };
-  }
+  if (period === 'week') { const f = new Date(now); f.setDate(now.getDate() - 7); return { from: iso(f), to: iso(now) }; }
+  if (period === 'month') { const f = new Date(now); f.setMonth(now.getMonth() - 1); return { from: iso(f), to: iso(now) }; }
+  if (period === 'year') { const f = new Date(now); f.setFullYear(now.getFullYear() - 1); return { from: iso(f), to: iso(now) }; }
   if (period === 'custom') return { from: customFrom, to: customTo };
   return { from: undefined, to: undefined };
 }
@@ -61,23 +52,23 @@ const SOURCES: { key: SourceFilter; label: string }[] = [
 export default function FuelPage() {
   const [tab, setTab] = useState<'transactions' | 'fraud'>('transactions');
   const [source, setSource] = useState<SourceFilter>('all');
-  const [period, setPeriod] = useState<Period>('month');
+  const [period, setPeriod] = useState<Period>('all');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
 
   const { from, to } = getPeriodDates(period, customFrom, customTo);
 
-  const { data: kpi, isError: errKpi } = useQuery({
+  const { data: kpi } = useQuery({
     queryKey: ['fuel-kpi'],
     queryFn: () => fuelApi.kpi(30),
     retry: false,
   });
-  const { data: transactions = [], isLoading: loadingTx, isError: errTx } = useQuery<FuelTransaction[]>({
+  const { data: transactions = [], isLoading: loadingTx } = useQuery<FuelTransaction[]>({
     queryKey: ['fuel-transactions', from, to],
     queryFn: () => fuelApi.transactions(from, to),
     retry: false,
   });
-  const { data: fraudAlerts = [], isLoading: loadingFraud, isError: errFraud } = useQuery<FraudAlert[]>({
+  const { data: fraudAlerts = [], isLoading: loadingFraud } = useQuery<FraudAlert[]>({
     queryKey: ['fraud-alerts'],
     queryFn: () => fuelApi.fraudAlerts(),
     retry: false,
@@ -88,20 +79,15 @@ export default function FuelPage() {
     [transactions, source]
   );
 
-  const hasError = errKpi || errTx || errFraud;
-
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Carburant</h2>
         <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
           {PERIODS.map(p => (
-            <button
-              key={p.key}
-              onClick={() => setPeriod(p.key)}
+            <button key={p.key} onClick={() => setPeriod(p.key)}
               className={'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ' +
-                (period === p.key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}
-            >
+                (period === p.key ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>
               {p.label}
             </button>
           ))}
@@ -119,17 +105,11 @@ export default function FuelPage() {
         </div>
       )}
 
-      {hasError && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-yellow-800 text-sm">
-          Les donnees carburant ne sont pas encore disponibles. Les KPIs s'afficheront une fois Tankyou / Total Energies configure.
-        </div>
-      )}
-
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard title="Volume (30j)" value={fmt(kpi?.totalVolumeL) + ' L'} icon="fuel" color="blue" />
-        <KpiCard title="Prix moyen" value={fmt(kpi?.avgPriceEur, 2) + ' EUR/L'} icon="euro" color="green" />
-        <KpiCard title="Cout (30j)" value={fmt(kpi?.totalCostEur) + ' EUR'} icon="receipt" color="orange" />
-        <KpiCard title="Alertes fraude" value={String(kpi?.openFraudAlerts ?? 0)} icon="warning" color="red" />
+        <KpiCard title="Volume (30j)" value={fmt(kpi?.totalVolumeL) + ' L'} icon="⛽" color="blue" />
+        <KpiCard title="Prix moyen" value={fmt(kpi?.avgPriceEur, 2) + ' EUR/L'} icon="💶" color="green" />
+        <KpiCard title="Cout (30j)" value={fmt(kpi?.totalCostEur) + ' EUR'} icon="🧾" color="amber" />
+        <KpiCard title="Alertes fraude" value={String(kpi?.openFraudAlerts ?? 0)} icon="⚠️" color="red" />
       </div>
 
       <div className="bg-white rounded-xl shadow p-4">
@@ -219,9 +199,7 @@ export default function FuelPage() {
                         <td>{a.alertType}</td>
                         <td>
                           <span className={'px-2 py-0.5 rounded-full text-xs ' +
-                            (a.riskScore >= 80 ? 'bg-red-100 text-red-700'
-                              : a.riskScore >= 50 ? 'bg-orange-100 text-orange-700'
-                              : 'bg-yellow-100 text-yellow-700')}>
+                            (a.riskScore >= 80 ? 'bg-red-100 text-red-700' : a.riskScore >= 50 ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700')}>
                             {a.riskScore}
                           </span>
                         </td>
