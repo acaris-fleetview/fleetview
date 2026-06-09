@@ -17,18 +17,20 @@ export class ImportService {
     private dataSource: DataSource,
   ) {}
 
-  async importFuel(records: any[]): Promise<ImportResult> {
+  async importFuel(records: any[], append = false): Promise<ImportResult> {
     const result: ImportResult = { source: 'fuel', inserted: 0, skipped: 0, errors: [] };
     if (!records?.length) return result;
 
     // Determine provider from records (all records in one import share the same provider)
     const provider = records[0]?.provider ?? 'Tankyou';
 
-    // Delete existing records for this provider only (preserves other providers)
-    await this.dataSource.query(
-      `DELETE FROM fuel_transactions WHERE provider = $1 OR provider IS NULL`,
-      [provider]
-    );
+    // Delete existing records only on first chunk (append=false)
+    if (!append) {
+      await this.dataSource.query(
+        `DELETE FROM fuel_transactions WHERE provider = $1 OR provider IS NULL`,
+        [provider]
+      );
+    }
 
     for (const r of records) {
       try {
