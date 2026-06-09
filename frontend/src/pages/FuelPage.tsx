@@ -4,205 +4,211 @@ import { fuelApi } from '../services/api';
 import { FuelTransaction, FraudAlert } from '../types';
 import KpiCard from '../components/common/KpiCard';
 
-const fmt = (n?: number, dec = 0) => n != null ? n.toLocaleString('fr-FR', { maximumFractionDigits: dec }) : '-';
-const fmtDate = (s?: string) => s ? new Date(s).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-';
-
 type Period = 'week' | 'month' | 'year' | 'all' | 'custom';
-
-function getPeriodDates(period: Period, customFrom: string, customTo: string): { from?: string; to?: string; days: number } {
-  const now = new Date();
-  const to = now.toISOString().split('T')[0];
-  if (period === 'week')   { const f = new Date(now); f.setDate(f.getDate()-7);        return { from: f.toISOString().split('T')[0], to, days: 7 }; }
-  if (period === 'month')  { const f = new Date(now); f.setMonth(f.getMonth()-1);       return { from: f.toISOString().split('T')[0], to, days: 30 }; }
-  if (period === 'year')   { const f = new Date(now); f.setFullYear(f.getFullYear()-1); return { from: f.toISOString().split('T')[0], to, days: 365 }; }
-  if (period === 'custom') { return { from: customFrom || undefined, to: customTo || undefined, days: 0 }; }
-  return { from: undefined, to: undefined, days: 0 };
-}
-
 type SourceFilter = 'all' | 'tankyou' | 'total';
 
-function matchesSource(provider: string, source: SourceFilter): boolean {
+const fmt = (n?: number, dec = 0) => n != null ? n.toLocaleString('fr-FR', { maximumFractionDigits: dec }) : '-';
+const fmtDate = (s: string) => new Date(s).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+function getPeriodDates(period: Period, customFrom?: string, customTo?: string): { from?: string; to?: string } {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  if (period === 'week') {
+    const from = new Date(now); from.setDate(now.getDate() - 7);
+    return { from: iso(from), to: iso(now) };
+  }
+  if (period === 'month') {
+    const from = new Date(now); from.setMonth(now.getMonth() - 1);
+    return { from: iso(from), to: iso(now) };
+  }
+  if (period === 'year') {
+    const from = new Date(now); from.setFullYear(now.getFullYear() - 1);
+    return { from: iso(from), to: iso(now) };
+  }
+  if (period === 'custom') return { from: customFrom, to: customTo };
+  return {};
+}
+
+function matchesSource(provider: string | undefined, source: SourceFilter): boolean {
   if (source === 'all') return true;
-  const p = (provider || '').toLowerCase();
-  if (source === 'tankyou') return p.includes('tank');
+  if (!provider) return false;
+  const p = provider.toLowerCase();
+  if (source === 'tankyou') return p.includes('tank') || p.includes('tankyou');
   if (source === 'total') return p.includes('total');
-        if (!matchesSource(t.provider, sourceFilter)) return false;
-return true;
+  return false;
 }
 
 export default function FuelPage() {
-  const [tab, setTab] = useState<'transactions' | 'fraud'>('transactions');
+  const [tab, setTab] = useState<'transactions'|'fraud'>('transactions');
+  const [source, setSource] = useState<SourceFilter>('all');
   const [period, setPeriod] = useState<Period>('month');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
-  const [vehicleFilter, setVehicleFilter] = useState('');
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
 
-  const { from, to, days } = useMemo(() => getPeriodDates(period, customFrom, customTo), [period, customFrom, customTo]);
+  const { from, to } = getPeriodDates(period, customFrom, customTo);
 
-  const { data: kpi } = useQuery({
-    queryKey: ['fuel-kpi', days],
-    queryFn: () => fuelApi.kpi(days || 9999),
+  const { data: kpi, isLoading: loadingKpi, isError: errKpi } = useQuery({
+    queryKey: ['fuel-kpi'],
+    queryFn: () => fuelApi.kpi(30),
     retry: false,
   });
-
-  const { data: allTransactions = [], isLoading: loadingTx } = useQuery<FuelTransaction[]>({
+  const { data: transactions = [], isLoading: loadingTx, isError: errTx } = useQuery<FuelTransaction[]>({
     queryKey: ['fuel-transactions', from, to],
     queryFn: () => fuelApi.transactions(from, to),
     retry: false,
   });
-
-  const { data: fraudAlerts = [], isLoading: loadingFraud } = useQuery<FraudAlert[]>({
+  const { data: fraudAlerts = [], isLoading: loadingFraud, isError: errFraud } = useQuery<FraudAlert[]>({
     queryKey: ['fraud-alerts'],
     queryFn: () => fuelApi.fraudAlerts(),
     retry: false,
   });
 
-  const transactions = useMemo(() => {
-    if (!vehicleFilter.trim()) return allTransactions;
-    const f = vehicleFilter.trim().toLowerCase();
-    return allTransactions.filter(t => (t.vehicleId || '').toLowerCase().includes(f));
-  }, [allTransactions, vehicleFilter, sourceFilter]);
+  const filteredTransactions = useMemo(() =>
+    transactions.filter(t => matchesSource(t.provider, source)),
+    [transactions, source]
+  );
 
-  const periodLabel: Record<Period, string> = {
-    week: '7j', month: '30j', year: '365j', all: 'Tout', custom: 'Perso'
-  };
+  const hasError = errKpi || errTx || errFraud;
+
+  const PERIODS: { key: Period; label: string }[] = [
+    { key: 'week', label: 'Semaine' },
+    { key: 'month', label: 'Mois' },
+    { key: 'year', label: 'Année' },
+    { key: 'all', label: 'Tout' },
+    { key: 'custom', label: 'Personnalisé' },
+  ];
+
+  const SOURCES: { key: SourceFilter; label: string }[] = [
+    { key: 'all', label: 'Toutes sources' },
+    { key: 'tankyou', label: 'Tank You' },
+    { key: 'total', label: 'Total' },
+  ];
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-2xl font-bold text-gray-900">Carburant</h2>
+      <h2 className="text-2xl font-bold text-gray-900">Carburant</h2>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {(['week','month','year','all','custom'] as Period[]).map(p => (
-            <button key={p} onClick={() => setPeriod(p)}
-              className={'px-3 py-1 rounded-full text-xs font-medium border transition-colors ' + (period === p ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400')}>
-              {p === 'week' ? 'Semaine' : p === 'month' ? 'Mois' : p === 'year' ? 'AnnÃ©e' : p === 'all' ? 'Tout' : 'Dates'}
-            </button>
-          ))}
-          {period === 'custom' && (
-            <div className="flex items-center gap-1">
-              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
-                className="border border-gray-300 rounded px-2 py-1 text-xs" />
-              <span className="text-gray-400 text-xs">â</span>
-              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
-                className="border border-gray-300 rounded px-2 py-1 text-xs" />
-            </div>
-          )}
+      {hasError && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-yellow-800">
+          Les données carburant ne sont pas encore disponibles (API non connectée). Les KPIs s'afficheront une fois Tankyou / Total Energies configuré.
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard title={'Volume (' + periodLabel[period] + ')'} value={fmt(kpi?.totalVolumeL, 1) + ' L'} icon="â½" color="blue" />
-        <KpiCard title="Prix moyen" value={fmt(kpi?.avgPriceEur, 3) + ' â¬/L'} icon="ð¶" color="green" />
-        <KpiCard title={'CoÃ»t (' + periodLabel[period] + ')'} value={fmt(kpi?.totalCostEur) + ' â¬'} icon="ð§¾" color="orange" />
-        <KpiCard title="Alertes fraude" value={String(kpi?.openFraudAlerts ?? kpi?.fraudAlertsCount ?? 0)} icon="â ï¸" color="red" />
+        <KpiCard title="Volume total (30j)" value={`${fmt(kpi?.totalVolumeL)} L`} icon="⛽" color="blue" />
+        <KpiCard title="Prix moyen" value={`${fmt(kpi?.avgPriceEur, 3)} €/L`} icon="💶" color="green" />
+        <KpiCard title="Coût total (30j)" value={`${fmt(kpi?.totalCostEur)} €`} icon="🧾" color="orange" />
+        <KpiCard title="Alertes fraude" value={String(kpi?.fraudAlertsCount ?? 0)} icon="⚠️" color="red" />
+      </div>
+
+      {/* Filtres */}
+      <div className="bg-white rounded-xl shadow p-4 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-gray-600 w-20">Source</span>
+          {SOURCES.map(s => (
+            <button
+              key={s.key}
+              onClick={() => setSource(s.key)}
+              className={`px-3 py-1 rounded-full text-sm font-medium border ${source === s.key ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-gray-600 w-20">Période</span>
+          {PERIODS.map(p => (
+            <button
+              key={p.key}
+              onClick={() => setPeriod(p.key)}
+              className={`px-3 py-1 rounded-full text-sm font-medium border ${period === p.key ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {period === 'custom' && (
+          <div className="flex flex-wrap items-center gap-3 pl-24">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">Du</label>
+              <input
+                type="date"
+                value={customFrom}
+                onChange={e => setCustomFrom(e.target.value)}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">Au</label>
+              <input
+                type="date"
+                value={customTo}
+                onChange={e => setCustomTo(e.target.value)}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl shadow p-4">
-        <div className="flex items-center justify-between mb-4 border-b pb-2 flex-wrap gap-2">
-          <div className="flex gap-3">
-            <button onClick={() => setTab('transactions')}
-              className={'px-4 py-1 rounded-full text-sm font-medium ' + (tab === 'transactions' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-700')}>
-              Transactions ({transactions.length})
-            </button>
-            <button onClick={() => setTab('fraud')}
-              className={'px-4 py-1 rounded-full text-sm font-medium ' + (tab === 'fraud' ? 'bg-red-600 text-white' : 'text-gray-500 hover:text-gray-700')}>
-              Alertes fraude
-            </button>
-          </div>
-          {tab === 'transactions' && (
-            <input type="text" placeholder="Filtrer par vÃ©hicule..." value={vehicleFilter} onChange={e => setVehicleFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-1 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-300" />
-
-        {/* Filtre source */}
-        <div className="flex items-center gap-2 mt-2">
-          <span className="text-sm text-gray-500">Source :</span>
-          <div className="flex gap-1">
-            {(['all', 'tankyou', 'total'] as SourceFilter[]).map(s => (
-              <button
-                key={s}
-                onClick={() => setSourceFilter(s)}
-                className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
-                  sourceFilter === s
-                    ? s === 'all' ? 'bg-gray-700 text-white'
-                      : s === 'tankyou' ? 'bg-emerald-600 text-white'
-                      : 'bg-red-600 text-white'
-                    : s === 'all' ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      : s === 'tankyou' ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                      : 'bg-red-50 text-red-700 hover:bg-red-100'
-                }`}
-              >
-                {s === 'all' ? 'Tous' : s === 'tankyou' ? 'Tank You' : 'Total'}
-              </button>
-            ))}
-          </div>
-        </div>
-          )}
+        <div className="flex gap-4 mb-4 border-b pb-2">
+          <button onClick={() => setTab('transactions')} className={`px-4 py-1 rounded-full text-sm font-medium ${tab === 'transactions' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}>
+            Transactions {filteredTransactions.length > 0 && `(${filteredTransactions.length})`}
+          </button>
+          <button onClick={() => setTab('fraud')} className={`px-4 py-1 rounded-full text-sm font-medium ${tab === 'fraud' ? 'bg-red-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}>
+            Alertes fraude {kpi?.fraudAlertsCount ? `(${kpi.fraudAlertsCount})` : ''}
+          </button>
         </div>
 
         {tab === 'transactions' && (
           loadingTx ? <p className="text-gray-400 text-sm">Chargement...</p> :
-          transactions.length === 0 ? <p className="text-gray-400 text-sm italic">Aucune transaction sur cette pÃ©riode.</p> :
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 border-b text-xs uppercase tracking-wide">
-                  <th className="pb-2 pr-4">Date</th>
-                  <th className="pb-2 pr-4">VÃ©hicule</th>
-                  <th className="pb-2 pr-4">Fournisseur</th>
-                  <th className="pb-2 pr-4">Station</th>
-                  <th className="pb-2 pr-4 text-right">Volume</th>
-                  <th className="pb-2 pr-4 text-right">Prix/L</th>
-                  <th className="pb-2 pr-4 text-right">Total</th>
-                  <th className="pb-2">Statut</th>
+          filteredTransactions.length === 0 ? <p className="text-gray-400 text-sm italic">Aucune transaction — connectez Tankyou ou Total Energies pour voir les données.</p> :
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-500 border-b">
+                <th className="pb-2">Date</th><th>Véhicule</th><th>Station</th><th>Volume</th><th>Prix/L</th><th>Total</th><th>Source</th><th>Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredTransactions.map(t => (
+                <tr key={t.id} className="border-b last:border-0 hover:bg-gray-50">
+                  <td className="py-2 text-gray-600">{fmtDate(t.date)}</td>
+                  <td>{t.vehiclePlate}</td>
+                  <td className="text-gray-600">{t.stationName}</td>
+                  <td>{fmt(t.volumeL, 1)} L</td>
+                  <td>{fmt(t.pricePerL, 3)} €</td>
+                  <td className="font-medium">{fmt(t.totalEur)} €</td>
+                  <td className="text-gray-500 text-xs">{t.provider ?? '-'}</td>
+                  <td><span className={`px-2 py-0.5 rounded-full text-xs ${t.suspicious ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{t.suspicious ? 'Suspect' : 'OK'}</span></td>
                 </tr>
-              </thead>
-              <tbody>
-                {transactions.map(t => (
-                  <tr key={t.id} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="py-2 pr-4 text-gray-600 whitespace-nowrap">{fmtDate(t.transactedAt)}</td>
-                    <td className="pr-4 font-medium">{t.vehicleId || '-'}</td>
-                    <td className="pr-4 text-gray-500">{t.provider || '-'}</td>
-                    <td className="pr-4 text-gray-500">{t.stationName || '-'}</td>
-                    <td className="pr-4 text-right">{fmt(Number(t.volumeL), 1)} L</td>
-                    <td className="pr-4 text-right">{fmt(Number(t.unitPriceEur), 3)} â¬</td>
-                    <td className="pr-4 text-right font-medium">{fmt(Number(t.totalEur))} â¬</td>
-                    <td><span className={'px-2 py-0.5 rounded-full text-xs ' + (t.fraudStatus === 'clear' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700')}>{t.fraudStatus === 'clear' ? 'Normal' : 'Suspect'}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         )}
 
         {tab === 'fraud' && (
           loadingFraud ? <p className="text-gray-400 text-sm">Chargement...</p> :
-          fraudAlerts.length === 0 ? <p className="text-gray-400 text-sm italic">Aucune alerte fraude dÃ©tectÃ©e.</p> :
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500 border-b text-xs uppercase">
-                  <th className="pb-2 pr-4">Date</th>
-                  <th className="pb-2 pr-4">Type</th>
-                  <th className="pb-2 pr-4">Description</th>
-                  <th className="pb-2 pr-4 text-right">Score risque</th>
-                  <th className="pb-2">Statut</th>
+          fraudAlerts.length === 0 ? <p className="text-gray-400 text-sm italic">Aucune alerte fraude détectée.</p> :
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-500 border-b">
+                <th className="pb-2">Date</th><th>Véhicule</th><th>Type</th><th>Montant</th><th>Gravité</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fraudAlerts.map(a => (
+                <tr key={a.id} className="border-b last:border-0 hover:bg-gray-50">
+                  <td className="py-2 text-gray-600">{fmtDate(a.date)}</td>
+                  <td>{a.vehiclePlate}</td>
+                  <td>{a.type}</td>
+                  <td>{fmt(a.amountEur)} €</td>
+                  <td><span className={`px-2 py-0.5 rounded-full text-xs ${a.severity === 'high' ? 'bg-red-100 text-red-700' : a.severity === 'medium' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>{a.severity}</span></td>
                 </tr>
-              </thead>
-              <tbody>
-                {fraudAlerts.map(a => (
-                  <tr key={a.id} className="border-b last:border-0 hover:bg-gray-50">
-                    <td className="py-2 pr-4 text-gray-600 whitespace-nowrap">{fmtDate(a.createdAt)}</td>
-                    <td className="pr-4">{a.alertType}</td>
-                    <td className="pr-4 text-gray-500">{a.description}</td>
-                    <td className="pr-4 text-right font-medium">{a.riskScore}</td>
-                    <td><span className={'px-2 py-0.5 rounded-full text-xs ' + (a.status === 'open' ? 'bg-red-100 text-red-700' : a.status === 'acknowledged' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600')}>{a.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     </div>
