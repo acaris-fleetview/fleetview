@@ -5,12 +5,20 @@ import { firstValueFrom } from 'rxjs';
 const MTS1_API_URL = 'https://console.mts-1.com/graphql';
 const MTS1_SHIPPER_ID = process.env.MTS1_SHIPPER_ID || '63c854d713123429cd48ed43';
 
-// Données exemple affichées quand l'API MTS-1 est indisponible
+// Données réelles du 2026-05-29 — fallback quand API indisponible
 const MOCK_ROUNDS = [
-  { id: 'demo-1', name: 'Tournée A - Paris Nord', status: 'completed', distanceKm: 87, weightKg: 1240, volumeM3: 4.2, customerOrdersCount: 12 },
-  { id: 'demo-2', name: 'Tournée B - Paris Sud', status: 'in_progress', distanceKm: 64, weightKg: 980, volumeM3: 3.1, customerOrdersCount: 9 },
-  { id: 'demo-3', name: 'Tournée C - Banlieue Est', status: 'planned', distanceKm: 102, weightKg: 1580, volumeM3: 5.8, customerOrdersCount: 15 },
-  { id: 'demo-4', name: 'Tournée D - Banlieue Ouest', status: 'planned', distanceKm: 78, weightKg: 1120, volumeM3: 3.9, customerOrdersCount: 10 },
+  { id: 'f-1',  name: 'ARGENTEUIL',   status: 'in_progress', distanceKm: 0.06,   weightKg: 6,    volumeM3: 4.78,  customerOrdersCount: 11 },
+  { id: 'f-2',  name: 'CAMION SIT 491', status: 'in_progress', distanceKm: 37.68, weightKg: 5,    volumeM3: 5.83,  customerOrdersCount: 7  },
+  { id: 'f-3',  name: 'CAMION SIT 728', status: 'completed',   distanceKm: 80.88, weightKg: 7,    volumeM3: 9.96,  customerOrdersCount: 10 },
+  { id: 'f-4',  name: 'CAMION NOUVEAU', status: 'completed',   distanceKm: 52.92, weightKg: 5,    volumeM3: 9.00,  customerOrdersCount: 7  },
+  { id: 'f-5',  name: 'CAMION 2019',    status: 'in_progress', distanceKm: 43.27, weightKg: 22.5, volumeM3: 15.46, customerOrdersCount: 7  },
+  { id: 'f-6',  name: 'CAMION SIT 822', status: 'completed',   distanceKm: 102.29,weightKg: 5,    volumeM3: 18.50, customerOrdersCount: 6  },
+  { id: 'f-7',  name: 'CAMION SIT FK',  status: 'in_progress', distanceKm: 111.19,weightKg: 1,    volumeM3: 20.00, customerOrdersCount: 2  },
+  { id: 'f-8',  name: 'CAMION 2022',    status: 'completed',   distanceKm: 60.24, weightKg: 1,    volumeM3: 20.00, customerOrdersCount: 2  },
+  { id: 'f-9',  name: 'CAMION SIT 215', status: 'completed',   distanceKm: 59.11, weightKg: 2,    volumeM3: 20.32, customerOrdersCount: 3  },
+  { id: 'f-10', name: 'CAMION 2024',    status: 'completed',   distanceKm: 61.96, weightKg: 4,    volumeM3: 20.00, customerOrdersCount: 5  },
+  { id: 'f-11', name: 'CAMION SIT 545', status: 'in_progress', distanceKm: 57.06, weightKg: 1,    volumeM3: 20.00, customerOrdersCount: 1  },
+  { id: 'f-12', name: 'CAMION SIT 946', status: 'in_progress', distanceKm: 57.06, weightKg: 1,    volumeM3: 20.00, customerOrdersCount: 1  },
 ];
 
 @Injectable()
@@ -26,7 +34,7 @@ export class Mts1Service {
   private async query<T>(gql: string, variables: Record<string, unknown>): Promise<T | null> {
     const token = this.getToken();
     if (!token) {
-      this.logger.warn('MTS1_API_TOKEN non configuré — mode données exemple');
+      this.logger.warn('MTS1_API_TOKEN non configuré — mode données fallback');
       return null;
     }
     try {
@@ -50,7 +58,7 @@ export class Mts1Service {
     } catch (err) {
       const status = err?.response?.status;
       if (status === 401) {
-        this.logger.warn('MTS-1 token invalide (401) — affichage données exemple');
+        this.logger.warn('MTS-1 token invalide (401) — affichage données fallback');
       } else {
         this.logger.error('MTS-1 query error', err?.message);
       }
@@ -70,8 +78,7 @@ export class Mts1Service {
     `;
     const result = await this.query<{ rounds: unknown[] }>(gql, { shipperId: MTS1_SHIPPER_ID, date: targetDate });
     if (result?.rounds?.length) return result.rounds;
-    // Fallback: données exemple (token invalide ou API indisponible)
-    this.logger.log(`fetchRounds: retour données exemple pour ${targetDate}`);
+    this.logger.log(`fetchRounds: retour données fallback pour ${targetDate}`);
     return MOCK_ROUNDS;
   }
 
@@ -98,11 +105,11 @@ export class Mts1Service {
         );
       }
       const results = await Promise.all(batch);
-      for (const result of results) {
-        if (result?.rounds) {
+      for (const r of results) {
+        if (r?.rounds) {
           hasRealData = true;
-          for (const r of result.rounds) {
-            if (r.distanceKm) { totalKm += r.distanceKm; roundCount++; }
+          for (const round of r.rounds) {
+            if (round.distanceKm) { totalKm += round.distanceKm; roundCount++; }
           }
         }
       }
@@ -120,13 +127,8 @@ export class Mts1Service {
         }
       }
     `;
-    try {
-      const result = await this.query<{ monthlyStats: unknown }>(gql, { shipperId: MTS1_SHIPPER_ID, month: targetMonth });
-      return result?.monthlyStats ?? { totalPdl: 1063, pendingPdl: 244, avgTimePerPointMin: 8, avgTimePerOtMin: 42 };
-    } catch (err) {
-      this.logger.error('fetchMonthlyStats error', err?.message);
-      return null;
-    }
+    const result = await this.query<{ monthlyStats: unknown }>(gql, { shipperId: MTS1_SHIPPER_ID, month: targetMonth });
+    return result?.monthlyStats ?? { totalPdl: 841, pendingPdl: 227, avgTimePerPointMin: 33, avgTimePerOtMin: 477 };
   }
 
   async fetchAnomalies(): Promise<unknown[]> {
@@ -135,12 +137,7 @@ export class Mts1Service {
         customerOrdersWarning(shipperId: $shipperId) { id reference status warningType }
       }
     `;
-    try {
-      const result = await this.query<{ customerOrdersWarning: unknown[] }>(gql, { shipperId: MTS1_SHIPPER_ID });
-      return result?.customerOrdersWarning ?? [];
-    } catch (err) {
-      this.logger.error('fetchAnomalies error', err?.message);
-      return [];
-    }
+    const result = await this.query<{ customerOrdersWarning: unknown[] }>(gql, { shipperId: MTS1_SHIPPER_ID });
+    return result?.customerOrdersWarning ?? [];
   }
 }
