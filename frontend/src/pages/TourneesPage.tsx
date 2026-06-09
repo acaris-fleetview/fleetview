@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import KpiCard from '../components/common/KpiCard';
 
 interface Round {
@@ -32,15 +32,17 @@ function normalizeRound(r: Round): NormalizedRound {
   const statusRaw = r.statut ?? r.status ?? '';
   const statut = statusRaw === 'completed' || statusRaw === 'Terminee' || statusRaw === 'Terminée' ? 'Terminée' : 'En cours';
   return {
-    nom:   r.nom ?? r.name ?? '—',
+    nom: r.nom ?? r.name ?? '—',
     depot: r.depot ?? 0,
-    pdl:   r.pdl ?? r.customerOrdersCount ?? 0,
+    pdl: r.pdl ?? r.customerOrdersCount ?? 0,
     statut,
-    km:    r.km ?? r.distanceKm ?? 0,
-    kg:    r.kg ?? r.weightKg ?? 0,
-    m3:    r.m3 ?? r.volumeM3 ?? 0,
+    km: r.km ?? r.distanceKm ?? 0,
+    kg: r.kg ?? r.weightKg ?? 0,
+    m3: r.m3 ?? r.volumeM3 ?? 0,
   };
 }
+
+const REFRESH_INTERVAL = 60; // secondes
 
 export default function TourneesPage() {
   const [tournees, setTournees] = useState<NormalizedRound[]>([]);
@@ -48,9 +50,14 @@ export default function TourneesPage() {
   const [error, setError] = useState(false);
   const [anomaliesCount, setAnomaliesCount] = useState(0);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [secondsAgo, setSecondsAgo] = useState(0);
+  const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    setLoading(true);
+  const fetchData = useCallback((isAuto = false) => {
+    if (!isAuto) setLoading(true);
     setError(false);
     const token = localStorage.getItem('access_token');
     const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
@@ -66,20 +73,37 @@ export default function TourneesPage() {
       .then(([rounds, anomalies]) => {
         if (Array.isArray(rounds)) {
           setTournees(rounds.map(normalizeRound));
+          setLastUpdated(new Date());
+          setSecondsAgo(0);
         } else {
           setError(true);
         }
-        if (Array.isArray(anomalies)) {
-          setAnomaliesCount(anomalies.length);
-        }
+        if (Array.isArray(anomalies)) setAnomaliesCount(anomalies.length);
       })
       .finally(() => setLoading(false));
   }, [selectedDate]);
 
-  const totalKm   = tournees.reduce((s, t) => s + t.km, 0);
-  const totalPdl  = tournees.reduce((s, t) => s + t.pdl, 0);
-  const enCours   = tournees.filter(t => t.statut === 'En cours').length;
+  useEffect(() => { fetchData(); }, [selectedDate]);
+
+  useEffect(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    setCountdown(REFRESH_INTERVAL);
+    timerRef.current = setInterval(() => { fetchData(true); setCountdown(REFRESH_INTERVAL); }, REFRESH_INTERVAL * 1000);
+    countdownRef.current = setInterval(() => { setCountdown(c => c > 0 ? c - 1 : REFRESH_INTERVAL); setSecondsAgo(s => s + 1); }, 1000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); if (countdownRef.current) clearInterval(countdownRef.current); };
+  }, [selectedDate, fetchData]);
+
+  const totalKm = tournees.reduce((s, t) => s + t.km, 0);
+  const totalPdl = tournees.reduce((s, t) => s + t.pdl, 0);
+  const enCours = tournees.filter(t => t.statut === 'En cours').length;
   const terminees = tournees.filter(t => t.statut === 'Terminée').length;
+
+  const formatSecondsAgo = (s: number) => {
+    if (s < 10) return 'à l\'instant';
+    if (s < 60) return `il y a ${s}s`;
+    return `il y a ${Math.floor(s / 60)}min`;
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -90,23 +114,19 @@ export default function TourneesPage() {
           <p className="text-sm text-gray-500">Livraisons du jour</p>
         </div>
         <div className="ml-auto flex items-center gap-3">
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={e => setSelectedDate(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-300"
-          />
+          <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-300" />
           {loading ? (
             <span className="text-xs text-gray-400 animate-pulse">Chargement…</span>
           ) : error ? (
             <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">⚠ API MTS-1 indisponible</span>
-          ) : tournees.length > 0 ? (
-            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">● Live MTS-1</span>
+          ) : lastUpdated ? (
+            <span className="text-xs text-gray-500 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse inline-block"></span>
+              Live · {formatSecondsAgo(secondsAgo)} · refresh dans {countdown}s
+            </span>
           ) : null}
-          <a href="https://console.mts-1.com/rounds" target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition-colors">
-            Ouvrir MTS-1 ↗
-          </a>
+          <button onClick={() => { fetchData(); setCountdown(REFRESH_INTERVAL); }} disabled={loading} className="flex items-center gap-1 px-3 py-1.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-colors" title="Rafraîchir">🔄</button>
+          <a href="https://console.mts-1.com/rounds" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition-colors">Ouvrir MTS-1 ↗</a>
         </div>
       </div>
 
@@ -128,7 +148,7 @@ export default function TourneesPage() {
           ) : (
             <>
               <p className="text-4xl mb-3">🚚</p>
-              <p className="font-medium text-gray-600">Aucune tournée pour cette date</p>
+              <p className="font-medium text-gray-600">Aucune tournɽe pour cette date</p>
               <p className="text-sm mt-1">Sélectionnez une autre date ou vérifiez MTS-1 directement.</p>
             </>
           )}
@@ -138,7 +158,7 @@ export default function TourneesPage() {
       {!loading && tournees.length > 0 && (
         <div className="card overflow-hidden p-0">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-800">Tournées du {new Date(selectedDate + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
+            <h2 className="font-semibold text-gray-800">Tournɽes du {new Date(selectedDate + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</h2>
             <div className="flex gap-2 text-xs">
               <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full">{enCours} en cours</span>
               <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full">{terminees} terminées</span>
@@ -165,7 +185,7 @@ export default function TourneesPage() {
                     <td className="px-6 py-3 text-center font-semibold text-gray-800">{t.pdl}</td>
                     <td className="px-6 py-3 text-center">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${t.statut === 'Terminée' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                        {t.statut === 'Terminée' ? '✓' : '●'} {t.statut}
+                        {t.statut === 'Terminée' ? '✓' : '✎'} {t.statut}
                       </span>
                     </td>
                     <td className="px-6 py-3 text-right text-gray-600">{t.km.toFixed(2)} km</td>
@@ -194,10 +214,8 @@ export default function TourneesPage() {
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
           <span className="text-2xl">⚠️</span>
           <div>
-            <p className="font-semibold text-amber-800">{anomaliesCount} anomalie{anomaliesCount > 1 ? 's' : ''} terrain non traitée{anomaliesCount > 1 ? 's' : ''}</p>
-            <p className="text-sm text-amber-600 mt-0.5">
-              <a href="https://console.mts-1.com/customerOrdersWarning" target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-800">Voir les anomalies sur MTS-1</a>
-            </p>
+            <p className="font-semibold text-amber-800">{anomaliesCount} anomalie{�anomaliesCount > 1 ? 's' : ''} terrain non traitée{anomaliesCount > 1 ? 's' : ''}</p>
+            <p className="text-sm text-amber-600"><a href="https://console.mts-1.com/customerOrdersWarning" target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-800">Voir les anomalies sur MTS-1</a></p>
           </div>
         </div>
       )}
