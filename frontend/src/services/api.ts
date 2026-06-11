@@ -21,13 +21,13 @@ api.interceptors.response.use(
   }
 );
 
-// ─── Auth ────────────────────────────────────────────────────────────────────
+// --- Auth ---
 export const authApi = {
   login: (email: string, password: string) =>
     api.post('/auth/login', { email, password }).then(r => r.data),
 };
 
-// ─── Fleet ───────────────────────────────────────────────────────────────────
+// --- Fleet ---
 export const fleetApi = {
   vehicles: () => api.get('/fleet/vehicles').then(r => r.data),
   vehicle: (id: string) => api.get(`/fleet/vehicles/${id}`).then(r => r.data),
@@ -35,24 +35,24 @@ export const fleetApi = {
   stats: () => api.get('/fleet/stats').then(r => r.data),
 };
 
-// ─── Telemetry ───────────────────────────────────────────────────────────────
+// --- Telemetry ---
 export const telemetryApi = {
   trips: (vehicleId: string, from?: string, to?: string) =>
     api.get(`/telemetry/trips/${vehicleId}`, { params: { from, to } }).then(r => r.data),
   kpi: (days = 30) => api.get('/telemetry/kpi', { params: { days } }).then(r => r.data),
 };
 
-// ─── Fuel ─────────────────────────────────────────────────────────────────────
+// --- Fuel ---
 export const fuelApi = {
-  transactions: (from?: string, to?: string, vehicleId?: string) =>
-    api.get('/fuel/transactions', { params: { from, to, vehicleId } }).then(r => r.data),
+  transactions: (from?: string, to?: string, vehicleId?: string, provider?: string) =>
+    api.get('/fuel/transactions', { params: { from, to, vehicleId, provider } }).then(r => r.data),
   fraudAlerts: (status?: string) =>
     api.get('/fuel/fraud-alerts', { params: { status } }).then(r => r.data),
   kpi: (days = 30) => api.get('/fuel/kpi', { params: { days } }).then(r => r.data),
   lastImports: () => api.get('/fuel/last-imports').then(r => r.data),
 };
 
-// ─── Connectors ──────────────────────────────────────────────────────────────
+// --- Connectors ---
 export const connectorsApi = {
   positions: () => api.get('/connectors/webfleet/positions').then(r => r.data),
   mts1Rounds: (date?: string) =>
