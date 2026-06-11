@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Request } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { FuelService } from './fuel.service';
@@ -12,29 +12,27 @@ export class FuelController {
 
   @Get('transactions')
   getTransactions(
+    @Request() req,
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('vehicleId') vehicleId?: string,
+    @Query('provider') provider?: string,
   ) {
-    return this.fuel.findTransactions(
-      from ? new Date(from) : undefined,
-      to ? new Date(to) : undefined,
+    return this.fuel.findTransactions(req.user.orgId, {
+      from: from ? new Date(from) : undefined,
+      to: to ? new Date(to) : undefined,
       vehicleId,
-    );
+      provider,
+    });
   }
 
   @Get('fraud-alerts')
-  getFraudAlerts(@Query('status') status?: string) {
-    return this.fuel.findFraudAlerts(status);
+  getFraudAlerts(@Request() req, @Query('status') status?: string) {
+    return this.fuel.findFraudAlerts(req.user.orgId, status);
   }
 
   @Get('kpi')
-  getKpi(@Query('days') days?: string) {
-    return this.fuel.fuelKpi(days ? parseInt(days) : 30);
-  }
-
-  @Get('last-imports')
-  getLastImports() {
-    return this.fuel.lastImportByProvider();
+  getKpi(@Request() req, @Query('days') days?: string) {
+    return this.fuel.fuelKpi(req.user.orgId, days ? parseInt(days) : 30);
   }
 }
